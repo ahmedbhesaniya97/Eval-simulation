@@ -8,12 +8,16 @@ import DeployModal from './components/DeployModal'
 import AddToSuiteModal from './components/AddToSuiteModal'
 import TestTab from './test/TestTab'
 import MonitorTab from './monitor/MonitorTab'
+import EvaluateTab from './evaluate/EvaluateTab'
+import { useEvaluateStore } from './evaluate/useEvaluateStore'
 import { Toast } from './components/ui'
 import { suiteRuns, requiredSuite } from './test/helpers'
 import { AGENT, SCENARIOS, PERSONAS, SUITES, INITIAL_RUNS, INITIAL_SIMULATIONS, ISSUES, makeRun } from './data'
 
 export default function App() {
-  const [tab, setTab] = useState('test')
+  const [tab, setTab] = useState('evaluate')
+  const evaluate = useEvaluateStore()
+  const [fixOrigin, setFixOrigin] = useState('test') // where "run again" should go after a fix
   const [testView, setTestView] = useState('evaluations')
   const [monitorView, setMonitorView] = useState('evaluations')
 
@@ -53,8 +57,9 @@ export default function App() {
   const goMonitor = (view) => { setTab('monitor'); setMonitorView(view) }
 
   // ---- Feedback loop: issue → update agent → run evaluation again ----
-  const startFix = (issueKey) => {
+  const startFix = (issueKey, origin = 'test') => {
     setEvaluation(null)
+    setFixOrigin(origin)
     setFixingIssue(issueKey)
     setTab('agent')
   }
@@ -143,6 +148,7 @@ export default function App() {
                 ['branches', 'Branches'],
                 ['test', 'Test'],
                 ['monitor', 'Monitor'],
+                ['evaluate', 'Test & Evaluate'],
               ].map(([k, label]) => (
                 <button key={k} className={`tab ${tab === k ? 'active' : ''}`} onClick={() => setTab(k)}>
                   {label}
@@ -161,8 +167,11 @@ export default function App() {
                 fixed={fixed}
                 onApplySuggestion={applySuggestion}
                 onDismissFix={() => setFixingIssue(null)}
-                onRunTests={() => { setFixingIssue(null); runEvaluation(gate.id) }}
-                suiteName={gate.name}
+                onRunTests={() => {
+                  setFixingIssue(null)
+                  if (fixOrigin === 'evaluate') { setTab('evaluate'); evaluate.setView('run') } else runEvaluation(gate.id)
+                }}
+                suiteName={fixOrigin === 'evaluate' ? 'your evals' : `“${gate.name}”`}
                 draftChanged={draftChanged}
               />
             )}
@@ -191,6 +200,9 @@ export default function App() {
                 onDeploy={() => setDeployOpen(true)}
                 {...shared}
               />
+            )}
+            {tab === 'evaluate' && (
+              <EvaluateTab store={evaluate} scenarios={scenarios} personas={personas} fixed={fixed} notify={notify} startFix={startFix} />
             )}
             {tab === 'monitor' && (
               <MonitorTab view={monitorView} setView={setMonitorView} addScenarioFromIssue={addScenarioFromIssue} {...shared} />

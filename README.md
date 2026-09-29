@@ -27,3 +27,12 @@ npm run dev   # http://localhost:5173
 4. The result is **19 / 20 · 1 fixed · No new issues** → **Deploy** (the modal names the required suite).
 5. **Test → Simulations** → open *Booking with different customers*. Talkative callers cause problems → **Add to evaluation suite**.
 6. **Monitor → Issues** → *Update agent* or *Add to evaluation suite* for issues found in production.
+
+## Test & Evaluate tab (merged flow)
+
+A newer, merged take that sits next to the existing Test and Monitor tabs. It follows the `eval.png` sketch. Code lives in `src/evaluate/`.
+
+- **Eval list:** each eval is one check, shown with its name, whether it's *Required*, and its *Success rate*. The list mixes built-in evals (generated from the agent) with custom ones. An eval passes when at least 90% of the calls it applies to meet it.
+- **Add custom eval:** name, task, success criteria, failure criteria, and a Required checkbox.
+- **Run evaluation:** choose **Production calls** (tick sessions from the last 7 days) or **Simulated calls** (scenarios × customer behaviors × environment), then choose which evals to run.
+- **Results:** view **By eval** (expand to see the failing calls and why) or **By call**. Each call opens with its eval results next to the conversation and player. **Update agent** starts the fix loop, and the Agent tab's *Run evaluation again* returns here.

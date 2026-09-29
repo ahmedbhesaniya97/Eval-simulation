@@ -1,51 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Play, Pause, Wrench, ListPlus, Lightbulb, ChevronDown, ChevronRight } from 'lucide-react'
+import { useState } from 'react'
+import { Play, Wrench, ListPlus, Lightbulb, ChevronDown, ChevronRight } from 'lucide-react'
 import { Drawer, StatusIcon } from './ui'
-import { CATEGORIES, statusLabel, fmtDuration } from '../data'
-
-function Player({ transcript, duration, flagStatus, position, setPosition, playing, setPlaying }) {
-  const bars = useMemo(() => Array.from({ length: 90 }, (_, i) => 0.25 + Math.abs(Math.sin(i * 1.7) * Math.cos(i * 0.37)) * 0.75), [])
-  const waveRef = useRef(null)
-  const seek = (e) => {
-    const r = waveRef.current.getBoundingClientRect()
-    setPosition(Math.max(0, Math.min(duration, ((e.clientX - r.left) / r.width) * duration)))
-  }
-  const flags = transcript.filter((l) => l.flag)
-  return (
-    <div className="card player">
-      <button className="play-btn" onClick={() => setPlaying(!playing)} aria-label={playing ? 'Pause' : 'Play'}>
-        {playing ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" style={{ marginLeft: 2 }} />}
-      </button>
-      <div className="wave" ref={waveRef} onClick={seek}>
-        {bars.map((h, i) => (
-          <span key={i} className={i / bars.length <= position / duration ? 'played' : ''} style={{ height: `${h * 100}%` }} />
-        ))}
-        {flags.map((l, i) => (
-          <div key={i} className={`marker ${flagStatus}`} style={{ left: `${(l.t / duration) * 100}%` }} title="Issue here" />
-        ))}
-      </div>
-      <span className="time">{fmtDuration(Math.floor(position))} / {fmtDuration(duration)}</span>
-    </div>
-  )
-}
+import { CATEGORIES, statusLabel } from '../data'
+import { usePlayback, Player, Transcript } from './Conversation'
 
 export default function EvaluationDrawer({ evaluation: ev, onClose, onUpdateAgent, onAddScenario, onAddToSuite }) {
-  const [position, setPosition] = useState(0)
-  const [playing, setPlaying] = useState(false)
+  const pb = usePlayback(ev.duration)
   const [showAll, setShowAll] = useState(false)
 
-  useEffect(() => {
-    if (!playing) return
-    const id = setInterval(() => {
-      setPosition((p) => {
-        if (p + 0.25 >= ev.duration) { setPlaying(false); return ev.duration }
-        return p + 0.25
-      })
-    }, 250 / 2) // 2× speed so the demo doesn't drag
-    return () => clearInterval(id)
-  }, [playing, ev.duration])
-
-  const currentIdx = ev.transcript.reduce((acc, l, i) => (l.t <= position ? i : acc), -1)
   const flagStatus = ev.issue?.severity || 'attention'
   const issueChecks = ev.checks.filter((c) => c.status !== 'success')
   const okChecks = ev.checks.filter((c) => c.status === 'success')
@@ -54,7 +16,7 @@ export default function EvaluationDrawer({ evaluation: ev, onClose, onUpdateAgen
 
   const jumpToIssue = () => {
     const l = ev.transcript.find((x) => x.flag)
-    if (l) { setPosition(l.t); setPlaying(true) }
+    if (l) pb.playFrom(l.t)
   }
 
   return (
@@ -155,24 +117,10 @@ export default function EvaluationDrawer({ evaluation: ev, onClose, onUpdateAgen
           <span className="muted small">Avg. response time {ev.stats.responseTime} · {ev.stats.turns} turns</span>
         </div>
         <div className="mt-8">
-          <Player transcript={ev.transcript} duration={ev.duration} flagStatus={flagStatus}
-            position={position} setPosition={setPosition} playing={playing} setPlaying={setPlaying} />
+          <Player transcript={ev.transcript} duration={ev.duration} flagStatus={flagStatus} pb={pb} />
         </div>
-        <div className="transcript mt-16">
-          {ev.transcript.map((l, i) => (
-            <div key={i}
-              className={`line ${l.who} ${i === currentIdx && (playing || position > 0) ? 'playing' : ''} ${l.flag ? `flag-${flagStatus}` : ''}`}
-              onClick={() => { setPosition(l.t); setPlaying(true) }}>
-              <div className="who">{l.who === 'agent' ? 'Agent' : 'Customer'}</div>
-              <div>
-                {l.text}
-                {l.flag && (
-                  <div className={`flag-note s-${flagStatus}`}><StatusIcon status={flagStatus} size={12} />{ev.issue.short}</div>
-                )}
-              </div>
-              <div className="ts">{fmtDuration(l.t)}</div>
-            </div>
-          ))}
+        <div className="mt-16">
+          <Transcript transcript={ev.transcript} flagStatus={flagStatus} flagLabel={ev.issue?.short} pb={pb} />
         </div>
       </div>
 

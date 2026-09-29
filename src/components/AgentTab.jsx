@@ -19,7 +19,7 @@ export default function AgentTab({ prompt, onPromptChange, fixingIssue, fixed, o
             <div className="title">{applied ? 'Change made — now run the evaluation' : `Fixing: ${issue.title}`}</div>
             <div className="body">
               {applied
-                ? `Run “${suiteName}” again to check the issue is gone and nothing else broke.`
+                ? `Run ${suiteName} again to check the issue is gone and nothing else broke.`
                 : issue.cause}
             </div>
             {!applied && (
@@ -42,7 +42,7 @@ export default function AgentTab({ prompt, onPromptChange, fixingIssue, fixed, o
           <FlaskConical size={18} style={{ color: 'var(--accent)' }} />
           <div style={{ flex: 1 }}>
             <div className="title">Your draft has changed since the last evaluation</div>
-            <div className="body">Run “{suiteName}” again to make sure nothing broke before you deploy.</div>
+            <div className="body">Run {suiteName} again to make sure nothing broke before you deploy.</div>
           </div>
           <button className="btn sm" onClick={onRunTests}>Run evaluation</button>
         </div>
