@@ -4,7 +4,7 @@ import { useStore, navigate } from '../store.jsx'
 import { SESSIONS, SESSION_BY_ID, NOW } from '../data/sessions.js'
 import { DEFAULT_SKIP_RULES, skipReason } from '../data/engine.js'
 import { Button, Checkbox, PageHeader, TypeBadge, RequiredBadge, EmptyState } from '../components/ui.jsx'
-import { OutcomeBadge, SessionPreviewDrawer } from '../components/SessionBits.jsx'
+import { SessionPreviewDrawer } from '../components/SessionBits.jsx'
 import EvaluationForm from './EvaluationForm.jsx'
 import { dateTime, duration, n, plural } from '../format.js'
 
@@ -15,7 +15,6 @@ const RANGES = [
   { id: '30', label: 'Last 30 days' },
   { id: 'all', label: 'All time' },
 ]
-const OUTCOMES = ['Completed', 'Escalated', 'Dropped', 'Abandoned', 'Voicemail']
 const PAGE = 40
 
 export default function RunWizard() {
@@ -25,7 +24,6 @@ export default function RunWizard() {
   // Step 1 — sessions
   const [selected, setSelected] = useState(() => new Set())
   const [range, setRange] = useState('7')
-  const [outcome, setOutcome] = useState('all')
   const [search, setSearch] = useState('')
   const [shown, setShown] = useState(PAGE)
   const [preview, setPreview] = useState(null)
@@ -45,11 +43,10 @@ export default function RunWizard() {
     const cutoff = range === 'all' ? 0 : NOW.getTime() - Number(range) * 86400000
     return SESSIONS.filter((s) => {
       if (new Date(s.startedAt).getTime() < cutoff) return false
-      if (outcome !== 'all' && s.outcome !== outcome) return false
       if (q && !s.id.includes(q) && !s.topic.toLowerCase().includes(q) && !s.turns.some((t) => t.text.toLowerCase().includes(q))) return false
       return true
     })
-  }, [range, outcome, search])
+  }, [range, search])
 
   const allFilteredSelected = filtered.length > 0 && filtered.every((s) => selected.has(s.id))
   const someFilteredSelected = filtered.some((s) => selected.has(s.id))
@@ -116,7 +113,7 @@ export default function RunWizard() {
           <div>
             {step === 0 && (
               <SessionsStep
-                {...{ filtered, selected, toggle, selectFiltered, allFilteredSelected, someFilteredSelected, range, setRange, outcome, setOutcome, search, setSearch, shown, setShown, setPreview }}
+                {...{ filtered, selected, toggle, selectFiltered, allFilteredSelected, someFilteredSelected, range, setRange, search, setSearch, shown, setShown, setPreview }}
                 clear={() => setSelected(new Set())}
               />
             )}
@@ -193,7 +190,7 @@ export default function RunWizard() {
   )
 }
 
-function SessionsStep({ filtered, selected, toggle, selectFiltered, allFilteredSelected, someFilteredSelected, range, setRange, outcome, setOutcome, search, setSearch, shown, setShown, setPreview, clear }) {
+function SessionsStep({ filtered, selected, toggle, selectFiltered, allFilteredSelected, someFilteredSelected, range, setRange, search, setSearch, shown, setShown, setPreview, clear }) {
   if (SESSIONS.length === 0) {
     return <EmptyState icon={Inbox} title="No sessions yet">No sessions are available for evaluation yet.</EmptyState>
   }
@@ -215,10 +212,6 @@ function SessionsStep({ filtered, selected, toggle, selectFiltered, allFilteredS
             <button key={r.id} className={range === r.id ? 'active' : ''} onClick={() => { setRange(r.id); setShown(PAGE) }}>{r.label}</button>
           ))}
         </div>
-        <select className="select" value={outcome} onChange={(e) => { setOutcome(e.target.value); setShown(PAGE) }} aria-label="Outcome">
-          <option value="all">All outcomes</option>
-          {OUTCOMES.map((o) => <option key={o}>{o}</option>)}
-        </select>
       </div>
 
       <div className="row" style={{ padding: '10px 14px', border: '1px solid var(--border)', borderBottom: 0, borderRadius: '6px 6px 0 0', background: selected.size ? 'rgba(108,180,240,.06)' : 'var(--bg-panel)' }}>
@@ -233,7 +226,7 @@ function SessionsStep({ filtered, selected, toggle, selectFiltered, allFilteredS
       {filtered.length === 0 ? (
         <div style={{ border: '1px solid var(--border)', borderRadius: '0 0 6px 6px' }}>
           <div style={{ padding: 20 }}>
-            <EmptyState icon={FilterX} title="No sessions match" action={<Button onClick={() => { setSearch(''); setOutcome('all'); setRange('all') }}>Clear filters</Button>}>
+            <EmptyState icon={FilterX} title="No sessions match" action={<Button onClick={() => { setSearch(''); setRange('all') }}>Clear filters</Button>}>
               Try a wider date range or a different search.
             </EmptyState>
           </div>
@@ -250,7 +243,6 @@ function SessionsStep({ filtered, selected, toggle, selectFiltered, allFilteredS
                 <th>Topic</th>
                 <th className="right">Duration</th>
                 <th className="right">Turns</th>
-                <th>Outcome</th>
                 <th style={{ width: 90 }} />
               </tr>
             </thead>
@@ -265,7 +257,6 @@ function SessionsStep({ filtered, selected, toggle, selectFiltered, allFilteredS
                   <td className="muted">{s.topic}</td>
                   <td className="right num">{duration(s.duration)}</td>
                   <td className="right num">{s.turnCount}</td>
-                  <td><OutcomeBadge outcome={s.outcome} /></td>
                   <td className="right">
                     <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); setPreview(s) }}>
                       <Eye size={14} /> View

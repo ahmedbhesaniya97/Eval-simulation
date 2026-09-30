@@ -4,7 +4,7 @@ import { navigate, useStore } from '../store.jsx'
 import { SESSIONS, SESSION_BY_ID } from '../data/sessions.js'
 import { sessionStatus } from '../data/engine.js'
 import { Button, PageHeader, StatusIcon, statusLabel } from '../components/ui.jsx'
-import { OutcomeBadge, SessionMeta } from '../components/SessionBits.jsx'
+import { SessionMeta } from '../components/SessionBits.jsx'
 import SessionView from '../components/SessionView.jsx'
 import { dateTime, dateShort, duration, n } from '../format.js'
 
@@ -24,7 +24,7 @@ export function SessionsPage() {
         </div>
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>Session</th><th>Started</th><th>Topic</th><th className="right">Duration</th><th className="right">Turns</th><th>Outcome</th><th /></tr></thead>
+            <thead><tr><th>Session</th><th>Started</th><th>Topic</th><th className="right">Duration</th><th className="right">Turns</th><th /></tr></thead>
             <tbody>
               {list.slice(0, shown).map((s) => (
                 <tr key={s.id} className="clickable" onClick={() => navigate(`#/sessions/${s.id}`)}>
@@ -33,7 +33,6 @@ export function SessionsPage() {
                   <td className="muted">{s.topic}</td>
                   <td className="right num">{duration(s.duration)}</td>
                   <td className="right num">{s.turnCount}</td>
-                  <td><OutcomeBadge outcome={s.outcome} /></td>
                   <td><ChevronRight size={16} className="faint" /></td>
                 </tr>
               ))}
