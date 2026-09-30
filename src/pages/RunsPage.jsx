@@ -1,17 +1,39 @@
-import { useMemo } from 'react'
-import { Play, TrendingUp, TrendingDown, History, Loader2 } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Play, TrendingUp, TrendingDown, History, Loader2, CalendarClock, User } from 'lucide-react'
 import { useStore, navigate } from '../store.jsx'
 import { summarizeRun } from '../data/engine.js'
 import { Button, PageHeader, StatusBadge, EmptyState, PassBar } from '../components/ui.jsx'
 import TrendChart from '../components/TrendChart.jsx'
-import { dateShort, pct, n, time } from '../format.js'
+import AgentSelect from '../components/AgentSelect.jsx'
+import { AGENTS, AGENT_BY_ID } from '../data/agents.js'
+import { dateShort, pct, n, time, plural } from '../format.js'
 
-export default function RunsPage() {
-  const { runs } = useStore()
+export function TriggerBadge({ run, automations }) {
+  if (run.trigger.type !== 'automation') return <span className="badge"><User size={12} /> Manual</span>
+  const a = automations?.find((x) => x.id === run.trigger.automationId)
+  return <span className="badge auto" title={a ? a.name : 'Automation'}><CalendarClock size={12} /> Automated</span>
+}
+
+const TRIGGERS = [
+  { id: 'all', label: 'All runs' },
+  { id: 'manual', label: 'Manual' },
+  { id: 'automation', label: 'Automated' },
+]
+
+export default function RunsPage({ query }) {
+  const { runs: allRuns, automations } = useStore()
+  const agentId = AGENT_BY_ID[query.get('agent')] ? query.get('agent') : AGENTS[0].id
+  const [trigger, setTrigger] = useState(query.get('trigger') || 'all')
+  // Everything on this page is scoped to one agent: numbers from different agents aren't comparable.
+  const runs = useMemo(
+    () => allRuns.filter((r) => r.agentId === agentId && (trigger === 'all' || r.trigger.type === trigger)),
+    [allRuns, agentId, trigger]
+  )
   const completed = useMemo(
-    () => runs.filter((r) => r.status === 'completed').map((r) => ({ run: r, summary: summarizeRun(r) })),
+    () => runs.filter((r) => r.status === 'completed' && r.evaluated.length > 0).map((r) => ({ run: r, summary: summarizeRun(r) })),
     [runs]
   )
+  const summaryOf = (id) => completed.find((c) => c.run.id === id)?.summary
 
   const latest = completed[0]
   const previous = completed[1]
@@ -25,19 +47,32 @@ export default function RunsPage() {
         crumbs={[{ label: 'Home', href: '#/home' }, { label: 'Evaluation', href: '#/evaluations' }, { label: 'Runs' }]}
         title="Evaluation Runs"
         subtitle="Every time you run evaluations against sessions. Is your agent getting better, or are problems increasing?"
-        actions={<Button variant="primary" onClick={() => navigate('#/runs/new')}><Play size={14} fill="currentColor" /> Run Evaluation</Button>}
+        actions={<Button variant="primary" onClick={() => navigate(`#/runs/new?agent=${agentId}`)}><Play size={14} fill="currentColor" /> Run Evaluation</Button>}
       />
       <div className="page-inner">
+        <div className="row" style={{ marginTop: 20, flexWrap: 'wrap' }}>
+          <AgentSelect value={agentId} onChange={(id) => navigate(`#/runs?agent=${id}`)} />
+          <div className="seg" role="group" aria-label="Trigger">
+            {TRIGGERS.map((t) => (
+              <button key={t.id} className={trigger === t.id ? 'active' : ''} onClick={() => setTrigger(t.id)}>{t.label}</button>
+            ))}
+          </div>
+          <div className="spacer" />
+          <span className="faint" style={{ fontSize: 13 }}>
+            {plural(automations.filter((a) => a.agentId === agentId && a.enabled).length, 'active automation')} ·{' '}
+            <a className="link" href="#/automations">Manage</a>
+          </span>
+        </div>
         {runs.length === 0 ? (
-          <div style={{ marginTop: 28 }}>
-            <EmptyState icon={History} title="No runs yet" action={<Button variant="primary" onClick={() => navigate('#/runs/new')}>Run Evaluation</Button>}>
-              Run your evaluations against past sessions to see how your agent performs.
+          <div style={{ marginTop: 20 }}>
+            <EmptyState icon={History} title="No runs for this agent yet" action={<Button variant="primary" onClick={() => navigate(`#/runs/new?agent=${agentId}`)}>Run Evaluation</Button>}>
+              Run your evaluations against {AGENT_BY_ID[agentId].name}'s sessions to see how it performs.
             </EmptyState>
           </div>
         ) : (
           <>
             {latest && (
-              <div className="grid" style={{ gridTemplateColumns: '260px 1fr 1.4fr', marginTop: 24 }}>
+              <div className="grid" style={{ gridTemplateColumns: '260px 1fr 1.4fr', marginTop: 16 }}>
                 <div className="card card-body">
                   <div className="eyebrow">Overall pass rate</div>
                   <div className="stat-value num" style={{ fontSize: 40, marginTop: 6 }}>{pct(latest.summary.passRate)}</div>
@@ -94,6 +129,7 @@ export default function RunsPage() {
                   <thead>
                     <tr>
                       <th>Run</th>
+                      <th>Trigger</th>
                       <th className="right">Sessions</th>
                       <th className="right">Evaluations</th>
                       <th style={{ width: 260 }}>Pass rate</th>
@@ -104,17 +140,21 @@ export default function RunsPage() {
                   </thead>
                   <tbody>
                     {runs.map((r) => {
-                      const s = r.status === 'completed' ? completed.find((c) => c.run.id === r.id).summary : null
+                      const s = summaryOf(r.id)
+                      const empty = r.status === 'completed' && !s
                       return (
                         <tr key={r.id} className="clickable" onClick={() => navigate(`#/runs/${r.id}`)}>
                           <td>
                             <div style={{ fontWeight: 500 }}>{r.name}</div>
-                            <div className="faint mono" style={{ fontSize: 12 }}>{r.id} · agent v{r.agentVersion}</div>
+                            <div className="faint mono" style={{ fontSize: 12 }}>{r.id} · v{r.agentVersion}</div>
                           </td>
+                          <td><TriggerBadge run={r} automations={automations} /></td>
                           <td className="right num">{n(r.evaluated.length)}</td>
                           <td className="right num">{r.evaluations.length}</td>
                           <td>
-                            {s ? (
+                            {empty ? (
+                              <span className="faint" style={{ fontSize: 13 }}>No sessions to evaluate</span>
+                            ) : s ? (
                               <div className="eval-row-bar">
                                 <span className="num" style={{ width: 40, fontWeight: 600 }}>{pct(s.passRate)}</span>
                                 <PassBar rate={s.passRate} />
@@ -122,13 +162,13 @@ export default function RunsPage() {
                             ) : (
                               <div className="eval-row-bar">
                                 <Loader2 size={14} className="spin" style={{ color: 'var(--accent)' }} />
-                                <div className="bar"><span className="fill" style={{ width: `${(r.doneChecks / r.totalChecks) * 100}%` }} /></div>
-                                <span className="num muted" style={{ fontSize: 12.5 }}>{Math.round((r.doneChecks / r.totalChecks) * 100)}%</span>
+                                <div className="bar"><span className="fill" style={{ width: `${r.totalChecks ? (r.doneChecks / r.totalChecks) * 100 : 0}%` }} /></div>
+                                <span className="num muted" style={{ fontSize: 12.5 }}>{r.totalChecks ? Math.round((r.doneChecks / r.totalChecks) * 100) : 0}%</span>
                               </div>
                             )}
                           </td>
                           <td className="right num">
-                            {s ? (s.counts.failed ? <span style={{ color: 'var(--fail)' }}>{n(s.counts.failed)} sessions</span> : <span className="faint">None</span>) : <span className="faint">—</span>}
+                            {s ? (s.counts.failed ? <span style={{ color: 'var(--fail)' }}>{plural(s.counts.failed, 'session')}</span> : <span className="faint">None</span>) : <span className="faint">—</span>}
                           </td>
                           <td className="muted">{dateShort(r.createdAt)} <span className="faint">· {time(r.createdAt)}</span></td>
                           <td><StatusBadge status={r.status} /></td>

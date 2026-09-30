@@ -1,7 +1,6 @@
-import { mulberry32, pick, between, intBetween, weightedPick } from './random.js'
+import { mulberry32, hash, pick, between, intBetween, weightedPick } from './random.js'
 import { TEMPLATES, NAMES, DOBS } from './templates.js'
-
-export const AGENT = { name: 'Northwind Support', id: 'agt_7f3k2m' }
+import { AGENTS } from './agents.js'
 
 // "Today" for the prototype.
 export const NOW = new Date('2026-09-30T16:45:00')
@@ -37,23 +36,28 @@ function buildTranscript(rng, template, vars) {
   })
 }
 
-function generateSessions(count) {
-  const rng = mulberry32(20260930)
+function generateSessions(agent) {
+  const rng = mulberry32(hash(agent.id))
+  const templates = TEMPLATES.filter((t) => t.agent === agent.id || t.agent === '*')
   const start = new Date('2026-08-01T08:00:00').getTime()
   const span = NOW.getTime() - start
   const sessions = []
-  for (let i = 0; i < count; i++) {
-    const template = weightedPick(rng, TEMPLATES)
+  for (let i = 0; i < agent.sessions; i++) {
+    const template = weightedPick(rng, templates)
     const name = pick(rng, NAMES)
+    const [first, last] = name.split(' ')
     const vars = {
       name,
-      first: name.split(' ')[0],
+      first,
       dob: pick(rng, DOBS),
       last4: String(intBetween(rng, 1000, 9999)),
+      email: `${first.toLowerCase().normalize('NFD').replace(/[^a-z]/g, '')}.${last[0].toLowerCase()}@gmail.com`,
+      org: agent.org,
+      persona: agent.persona,
     }
     const turns = buildTranscript(rng, template, vars)
-    const last = turns[turns.length - 1]
-    const duration = Math.max(4, Math.round(last.t + last.text.split(/\s+/).length * 0.36 + between(rng, 1, 4)))
+    const lastTurn = turns[turns.length - 1]
+    const duration = Math.max(4, Math.round(lastTurn.t + lastTurn.text.split(/\s+/).length * 0.36 + between(rng, 1, 4)))
 
     // Business-hours-ish timestamps
     const d = new Date(start + rng() * span)
@@ -62,6 +66,7 @@ function generateSessions(count) {
 
     sessions.push({
       id: sessionId(rng),
+      agentId: agent.id,
       startedAt: d.toISOString(),
       duration,
       turnCount: turns.length,
@@ -71,14 +76,25 @@ function generateSessions(count) {
       voicemail: !!template.voicemail,
       agentSpoke: !template.agentSilent,
       caller: `+1 (${intBetween(rng, 201, 989)}) •••-••${intBetween(rng, 10, 99)}`,
-      callerName: template.voicemail || template.agentSilent ? null : name,
       direction: template.voicemail ? 'Outbound' : 'Inbound',
       turns,
     })
   }
-  return sessions.sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+  return sessions
 }
 
-export const SESSIONS = generateSessions(1500)
+export const SESSIONS = AGENTS.flatMap(generateSessions).sort((a, b) => b.startedAt.localeCompare(a.startedAt))
 export const SESSION_BY_ID = Object.fromEntries(SESSIONS.map((s) => [s.id, s]))
 export const TEMPLATE_BY_KEY = Object.fromEntries(TEMPLATES.map((t) => [t.key, t]))
+export const sessionsForAgent = (agentId) => SESSIONS.filter((s) => s.agentId === agentId)
+
+// Sessions an agent handled on a calendar day (local time), optionally only up to `until`.
+export function sessionsOnDay(agentId, day, until) {
+  const start = new Date(`${day}T00:00:00`).getTime()
+  const end = until ? new Date(until).getTime() : start + 86400000
+  return SESSIONS.filter((s) => {
+    if (s.agentId !== agentId) return false
+    const t = new Date(s.startedAt).getTime()
+    return t >= start && t < end
+  })
+}

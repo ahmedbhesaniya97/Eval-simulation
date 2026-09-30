@@ -388,3 +388,7 @@ a { color: inherit; text-decoration: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .bar.split-bar { gap: 2px; background: transparent; }
 .bar.split-bar > span { border-radius: 2px; }
+.agent-select { position: relative; display: inline-flex; align-items: center; }
+.agent-select svg { position: absolute; left: 10px; color: var(--text-2); pointer-events: none; }
+.agent-select .select { padding-left: 32px; min-width: 340px; }
+.badge.auto { color: #c9a6ff; border-color: rgba(201, 166, 255, 0.35); background: rgba(201, 166, 255, 0.1); }

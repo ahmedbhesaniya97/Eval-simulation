@@ -1,8 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { INITIAL_EVALUATIONS } from './data/evaluations.js'
-import { buildSeedRuns } from './data/runs.js'
-import { computeRun, CURRENT_VERSION } from './data/engine.js'
-import { NOW } from './data/sessions.js'
+import { buildSeedRuns, INITIAL_AUTOMATIONS } from './data/runs.js'
+import { computeRun } from './data/engine.js'
+import { NOW, sessionsOnDay } from './data/sessions.js'
+import { currentVersion } from './data/agents.js'
 
 const StoreContext = createContext(null)
 export const useStore = () => useContext(StoreContext)
@@ -31,6 +32,7 @@ const newId = (prefix) => `${prefix}_${Date.now().toString(36).slice(-4)}${(seq+
 export function StoreProvider({ children }) {
   const [evaluations, setEvaluations] = useState(INITIAL_EVALUATIONS)
   const [runs, setRuns] = useState(buildSeedRuns)
+  const [automations, setAutomations] = useState(INITIAL_AUTOMATIONS)
   const [toast, setToast] = useState(null)
   const runsRef = useRef(runs)
   runsRef.current = runs
@@ -81,16 +83,19 @@ export function StoreProvider({ children }) {
     setEvaluations((list) => list.filter((e) => e.id !== id))
   }, [])
 
-  const startRun = useCallback(({ name, sessionIds, evaluations: evals, skipRules }) => {
+  const startRun = useCallback(({ name, agentId, sessionIds, evaluations: evals, skipRules, trigger = { type: 'manual' } }) => {
     // Snapshot the definitions: later edits to an evaluation must not rewrite history.
     const snapshot = evals.map((e) => ({ ...e }))
-    const computed = computeRun({ sessionIds, evaluations: snapshot, skipRules, version: CURRENT_VERSION })
+    const version = currentVersion(agentId)
+    const computed = computeRun({ sessionIds, evaluations: snapshot, skipRules, version })
     const run = {
       id: newId('run'),
       name,
+      agentId,
+      trigger,
       createdAt: new Date(NOW.getTime() + (Date.now() % 600000)).toISOString(),
-      createdBy: 'Ahmed Bhesaniya',
-      agentVersion: CURRENT_VERSION,
+      createdBy: trigger.type === 'automation' ? 'Automation' : 'Ahmed Bhesaniya',
+      agentVersion: version,
       sessionIds,
       evaluations: snapshot,
       skipRules: structuredClone(skipRules),
@@ -104,6 +109,18 @@ export function StoreProvider({ children }) {
     return run.id
   }, [])
 
+  const createAutomation = useCallback((a) => {
+    const id = newId('aut')
+    setAutomations((list) => [{ ...a, id, enabled: true, createdAt: NOW.toISOString(), createdBy: 'Ahmed Bhesaniya' }, ...list])
+    return id
+  }, [])
+  const toggleAutomation = useCallback((id) => {
+    setAutomations((list) => list.map((a) => (a.id === id ? { ...a, enabled: !a.enabled, pausedAt: a.enabled ? NOW.toISOString() : undefined } : a)))
+  }, [])
+  const deleteAutomation = useCallback((id) => {
+    setAutomations((list) => list.filter((a) => a.id !== id))
+  }, [])
+
   // How many sessions each evaluation has been run against, across all runs.
   const usage = useMemo(() => {
     const u = {}
@@ -112,8 +129,18 @@ export function StoreProvider({ children }) {
   }, [runs])
 
   const value = {
-    evaluations, runs, usage, toast,
+    evaluations, runs, automations, usage, toast,
     saveEvaluation, duplicateEvaluation, toggleEvaluation, deleteEvaluation, startRun,
+    createAutomation, toggleAutomation, deleteAutomation,
+    // Run an automation right away on today's sessions so far.
+    runAutomationNow: (a) => startRun({
+      name: a.name,
+      agentId: a.agentId,
+      sessionIds: sessionsOnDay(a.agentId, NOW.toISOString().slice(0, 10), NOW.toISOString()).map((s) => s.id),
+      evaluations: evaluations.filter((e) => a.evalIds.includes(e.id)),
+      skipRules: a.skipRules,
+      trigger: { type: 'automation', automationId: a.id, day: NOW.toISOString().slice(0, 10) },
+    }),
     dismissToast: () => setToast(null),
   }
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

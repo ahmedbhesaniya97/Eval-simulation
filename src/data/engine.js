@@ -3,9 +3,7 @@
 // so newer agent versions fail less often and the trend improves over time.
 import { chance } from './random.js'
 import { SESSION_BY_ID, TEMPLATE_BY_KEY } from './sessions.js'
-
-export const CURRENT_VERSION = 14
-const VERSION_FACTOR = { 9: 2.3, 10: 2.0, 11: 1.75, 12: 1.5, 13: 1.25, 14: 1.0 }
+import { factorFor } from './agents.js'
 
 export const DEFAULT_SKIP_RULES = {
   short: { on: true, value: 30 },
@@ -51,8 +49,8 @@ function fallbackVerdict(session, key) {
   return null
 }
 
-export function judge(session, evaluation, version = CURRENT_VERSION) {
-  const factor = VERSION_FACTOR[version] ?? 1
+export function judge(session, evaluation, version) {
+  const factor = factorFor(session.agentId, version)
   const roll = chance(`${session.id}:${evaluation.id}:${version}`)
   const template = TEMPLATE_BY_KEY[session.template]
 

@@ -1,6 +1,6 @@
 import {
   Home, Bot, BookOpen, Rocket, LayoutList, ClipboardCheck, PenTool, BellRing, PhoneCall, Webhook,
-  PhoneOutgoing, FileLock2, ChevronsUpDown, PanelLeftClose, ListChecks, History,
+  PhoneOutgoing, FileLock2, ChevronsUpDown, PanelLeftClose, ListChecks, History, CalendarClock,
 } from 'lucide-react'
 import { useStore } from '../store.jsx'
 
@@ -50,7 +50,7 @@ function Item({ id, label, Icon, tag, active, extra }) {
 export default function Sidebar({ section }) {
   const { runs } = useStore()
   const running = runs.some((r) => r.status === 'running')
-  const inEval = section === 'evaluations' || section === 'runs'
+  const inEval = ['evaluations', 'runs', 'automations'].includes(section)
 
   return (
     <aside className="sidebar">
@@ -83,6 +83,9 @@ export default function Sidebar({ section }) {
           <a href="#/runs" className={`nav-item ${section === 'runs' ? 'active' : ''}`}>
             <History size={16} strokeWidth={1.7} /> Runs
             {running && <span className="run-dot" title="A run is in progress" />}
+          </a>
+          <a href="#/automations" className={`nav-item ${section === 'automations' ? 'active' : ''}`}>
+            <CalendarClock size={16} strokeWidth={1.7} /> Automations
           </a>
         </div>
 

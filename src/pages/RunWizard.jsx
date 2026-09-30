@@ -1,27 +1,42 @@
 import { useMemo, useState } from 'react'
-import { Search, Eye, ArrowRight, Play, Check, Inbox, FilterX, Plus, ListChecks } from 'lucide-react'
+import { Search, Eye, ArrowRight, Play, Check, Inbox, FilterX, Plus, ListChecks, History, CalendarClock } from 'lucide-react'
 import { useStore, navigate } from '../store.jsx'
-import { SESSIONS, SESSION_BY_ID, NOW } from '../data/sessions.js'
+import { SESSION_BY_ID, NOW, sessionsForAgent, sessionsOnDay } from '../data/sessions.js'
+import { AGENTS, AGENT_BY_ID } from '../data/agents.js'
 import { DEFAULT_SKIP_RULES, skipReason } from '../data/engine.js'
 import { Button, Checkbox, PageHeader, TypeBadge, RequiredBadge, EmptyState } from '../components/ui.jsx'
 import { SessionPreviewDrawer } from '../components/SessionBits.jsx'
+import AgentSelect from '../components/AgentSelect.jsx'
 import EvaluationForm from './EvaluationForm.jsx'
-import { dateTime, duration, n, plural } from '../format.js'
+import { dateTime, duration, n, plural, timeLabel } from '../format.js'
 
-const STEPS = ['Select sessions', 'Select evaluations', 'Skip rules', 'Review']
+const STEPS = ['Agent & sessions', 'Select evaluations', 'Skip rules', 'Review']
 const RANGES = [
   { id: '1', label: 'Today' },
   { id: '7', label: 'Last 7 days' },
   { id: '30', label: 'Last 30 days' },
   { id: 'all', label: 'All time' },
 ]
+const TIMES = ['18:00', '20:00', '21:00', '22:00', '23:00', '23:30', '23:59']
 const PAGE = 40
+const TODAY = NOW.toISOString().slice(0, 10)
 
-export default function RunWizard() {
-  const { evaluations, startRun, saveEvaluation } = useStore()
+// The last 7 full days, used to estimate what a daily automation will pick up.
+function recentDays(agentId) {
+  const days = []
+  for (let i = 1; i <= 7; i++) days.push(new Date(new Date(`${TODAY}T12:00:00`).getTime() - i * 86400000).toISOString().slice(0, 10))
+  return days.flatMap((d) => sessionsOnDay(agentId, d))
+}
+
+export default function RunWizard({ query }) {
+  const { evaluations, startRun, saveEvaluation, createAutomation } = useStore()
   const [step, setStep] = useState(0)
 
-  // Step 1 — sessions
+  // Step 1 — agent, mode, sessions
+  const [agentId, setAgentId] = useState(() => (AGENT_BY_ID[query.get('agent')] ? query.get('agent') : AGENTS[0].id))
+  const [mode, setMode] = useState(query.get('mode') === 'auto' ? 'auto' : 'once')
+  const [time, setTime] = useState('23:30')
+  const [runToday, setRunToday] = useState(false)
   const [selected, setSelected] = useState(() => new Set())
   const [range, setRange] = useState('7')
   const [search, setSearch] = useState('')
@@ -36,17 +51,30 @@ export default function RunWizard() {
   const [rules, setRules] = useState(() => structuredClone(DEFAULT_SKIP_RULES))
 
   // Step 4 — review
-  const [name, setName] = useState('Weekly QA')
+  const [name, setName] = useState(mode === 'auto' ? 'Nightly check' : 'Weekly QA')
+  const auto = mode === 'auto'
+  const agent = AGENT_BY_ID[agentId]
 
+  const agentSessions = useMemo(() => sessionsForAgent(agentId), [agentId])
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    const cutoff = range === 'all' ? 0 : NOW.getTime() - Number(range) * 86400000
-    return SESSIONS.filter((s) => {
+    const cutoff = range === 'all' ? 0 : range === '1' ? new Date(`${TODAY}T00:00:00`).getTime() : NOW.getTime() - Number(range) * 86400000
+    return agentSessions.filter((s) => {
       if (new Date(s.startedAt).getTime() < cutoff) return false
       if (q && !s.id.includes(q) && !s.topic.toLowerCase().includes(q) && !s.turns.some((t) => t.text.toLowerCase().includes(q))) return false
       return true
     })
-  }, [range, search])
+  }, [agentSessions, range, search])
+
+  const changeAgent = (id) => {
+    setAgentId(id)
+    setSelected(new Set())
+    setShown(PAGE)
+  }
+  const changeMode = (m) => {
+    setMode(m)
+    setName(m === 'auto' ? 'Nightly check' : 'Weekly QA')
+  }
 
   const allFilteredSelected = filtered.length > 0 && filtered.every((s) => selected.has(s.id))
   const someFilteredSelected = filtered.some((s) => selected.has(s.id))
@@ -62,32 +90,54 @@ export default function RunWizard() {
   })
 
   const chosenEvals = evaluations.filter((e) => evalIds.has(e.id) && e.enabled)
-  const selectedSessions = useMemo(() => [...selected].map((id) => SESSION_BY_ID[id]), [selected])
+  // Run once: the picked sessions. Automated: the last 7 days, to estimate a typical day.
+  const sample = useMemo(
+    () => (auto ? recentDays(agentId) : [...selected].map((id) => SESSION_BY_ID[id])),
+    [auto, agentId, selected]
+  )
   const skipped = useMemo(() => {
     const out = {}
-    for (const s of selectedSessions) {
+    for (const s of sample) {
       const why = skipReason(s, rules)
       if (why) out[s.id] = why
     }
     return out
-  }, [selectedSessions, rules])
-  const skippedCount = Object.keys(skipped).length
-  const evaluatedCount = selected.size - skippedCount
+  }, [sample, rules])
+  const perDay = (v) => (auto ? Math.round(v / 7) : v)
+  const selectedCount = perDay(sample.length)
+  const skippedCount = perDay(Object.keys(skipped).length)
+  const evaluatedCount = selectedCount - skippedCount
   const checks = evaluatedCount * chosenEvals.length
   const rulesOn = Object.values(rules).filter((r) => r.on).length
 
-  const canNext = [selected.size > 0, chosenEvals.length > 0, true, evaluatedCount > 0 && name.trim()][step]
+  const canNext = [auto || selected.size > 0, chosenEvals.length > 0, true, (auto || evaluatedCount > 0) && name.trim()][step]
 
-  const run = () => {
-    const id = startRun({ name: name.trim(), sessionIds: [...selected], evaluations: chosenEvals, skipRules: rules })
-    navigate(`#/runs/${id}`)
+  const finish = () => {
+    if (!auto) {
+      const id = startRun({ name: name.trim(), agentId, sessionIds: [...selected], evaluations: chosenEvals, skipRules: rules })
+      navigate(`#/runs/${id}`)
+      return
+    }
+    const automation = { name: name.trim(), agentId, evalIds: chosenEvals.map((e) => e.id), skipRules: rules, time }
+    const id = createAutomation(automation)
+    if (runToday) {
+      const runId = startRun({
+        name: automation.name,
+        agentId,
+        sessionIds: sessionsOnDay(agentId, TODAY, NOW.toISOString()).map((s) => s.id),
+        evaluations: chosenEvals,
+        skipRules: rules,
+        trigger: { type: 'automation', automationId: id, day: TODAY },
+      })
+      navigate(`#/runs/${runId}`)
+    } else navigate(`#/automations?created=${id}`)
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
       <PageHeader
-        crumbs={[{ label: 'Home', href: '#/home' }, { label: 'Evaluation', href: '#/evaluations' }, { label: 'Runs', href: '#/runs' }, { label: 'New run' }]}
-        title="Run Evaluation"
+        crumbs={[{ label: 'Home', href: '#/home' }, { label: 'Evaluation', href: '#/evaluations' }, { label: 'Runs', href: '#/runs' }, { label: auto ? 'New automation' : 'New run' }]}
+        title={auto ? 'Automate Evaluation' : 'Run Evaluation'}
         back="#/runs"
       />
       <div className="page-inner" style={{ flex: 1, width: '100%' }}>
@@ -112,21 +162,46 @@ export default function RunWizard() {
         <div className="wizard">
           <div>
             {step === 0 && (
-              <SessionsStep
-                {...{ filtered, selected, toggle, selectFiltered, allFilteredSelected, someFilteredSelected, range, setRange, search, setSearch, shown, setShown, setPreview }}
-                clear={() => setSelected(new Set())}
-              />
+              <>
+                <div className="field" style={{ maxWidth: 440 }}>
+                  <label htmlFor="agent">Agent</label>
+                  <AgentSelect id="agent" value={agentId} onChange={changeAgent} />
+                  <span className="hint">Evaluations run on this agent's sessions only.</span>
+                </div>
+                <div className="field">
+                  <label>How should this run?</label>
+                  <div className="radio-cards" style={{ maxWidth: 720 }}>
+                    <button type="button" className={`radio-card ${!auto ? 'on' : ''}`} onClick={() => changeMode('once')}>
+                      <strong className="row" style={{ gap: 8 }}><History size={15} /> Run once on past sessions</strong>
+                      <span>Pick specific sessions and evaluate them now.</span>
+                    </button>
+                    <button type="button" className={`radio-card ${auto ? 'on' : ''}`} onClick={() => changeMode('auto')}>
+                      <strong className="row" style={{ gap: 8 }}><CalendarClock size={15} /> Automated, every day</strong>
+                      <span>Each night, evaluate every session this agent handled that day.</span>
+                    </button>
+                  </div>
+                </div>
+                {auto ? (
+                  <AutoScheduleStep {...{ agent, time, setTime, runToday, setRunToday }} avg={selectedCount} />
+                ) : (
+                  <SessionsStep
+                    {...{ filtered, selected, toggle, selectFiltered, allFilteredSelected, someFilteredSelected, range, setRange, search, setSearch, shown, setShown, setPreview }}
+                    empty={agentSessions.length === 0}
+                    clear={() => setSelected(new Set())}
+                  />
+                )}
+              </>
             )}
             {step === 1 && (
               <EvaluationsStep evaluations={evaluations} evalIds={evalIds} setEvalIds={setEvalIds} chosen={chosenEvals} onCreate={() => setCreating(true)} />
             )}
             {step === 2 && (
-              <SkipRulesStep rules={rules} setRules={setRules} sessions={selectedSessions} selected={selected.size} skipped={skippedCount} evaluated={evaluatedCount} />
+              <SkipRulesStep rules={rules} setRules={setRules} sessions={sample} selected={selectedCount} skipped={skippedCount} evaluated={evaluatedCount} auto={auto} />
             )}
             {step === 3 && (
               <ReviewStep
-                {...{ name, setName, evaluatedCount, skippedCount, checks, rulesOn, skipped }}
-                selected={selected.size}
+                {...{ name, setName, evaluatedCount, skippedCount, checks, rulesOn, skipped, auto, agent, time, runToday }}
+                selected={selectedCount}
                 evals={chosenEvals}
                 goToRules={() => setStep(2)}
               />
@@ -134,22 +209,29 @@ export default function RunWizard() {
           </div>
 
           <aside className="card impact">
-            <div className="card-head"><h3 className="card-title">What will run</h3></div>
+            <div className="card-head">
+              <h3 className="card-title">{auto ? 'What will run each night' : 'What will run'}</h3>
+            </div>
             <div className="card-body" style={{ paddingTop: 4, paddingBottom: 6 }}>
-              <div className="impact-row"><span className="muted">Sessions selected</span><span className="v">{n(selected.size)}</span></div>
+              <div className="impact-row" style={{ alignItems: 'center' }}>
+                <span className="muted">Agent</span>
+                <span style={{ textAlign: 'right', fontSize: 13 }}>{agent.name}<br /><span className="mono faint" style={{ fontSize: 11.5 }}>{agent.id}</span></span>
+              </div>
+              {auto && <div className="impact-row"><span className="muted">Schedule</span><span style={{ fontWeight: 600 }}>Daily · {timeLabel(time)}</span></div>}
+              <div className="impact-row"><span className="muted">{auto ? 'Sessions per day' : 'Sessions selected'}</span><span className="v">{auto && '~'}{n(selectedCount)}</span></div>
               <div className="impact-row">
                 <span className="muted">Skipped by rules</span>
-                <span className="v" style={{ color: skippedCount ? 'var(--warn)' : undefined }}>{skippedCount ? `−${n(skippedCount)}` : 0}</span>
+                <span className="v" style={{ color: skippedCount ? 'var(--warn)' : undefined }}>{skippedCount ? `${auto ? '~' : '−'}${n(skippedCount)}` : 0}</span>
               </div>
-              <div className="impact-row"><span>Sessions evaluated</span><span className="v">{n(evaluatedCount)}</span></div>
+              <div className="impact-row"><span>Sessions evaluated</span><span className="v">{auto && '~'}{n(evaluatedCount)}</span></div>
               <div className="impact-row"><span className="muted">Evaluations</span><span className="v">× {chosenEvals.length}</span></div>
-              <div className="impact-row"><span>Total checks</span><span className="v">{n(checks)}</span></div>
+              <div className="impact-row"><span>{auto ? 'Checks per day' : 'Total checks'}</span><span className="v">{auto && '~'}{n(checks)}</span></div>
             </div>
-            {step < 2 && selected.size > 0 && (
-              <div className="faint" style={{ padding: '0 18px 14px', fontSize: 12.5 }}>
-                {rulesOn} skip {rulesOn === 1 ? 'rule is' : 'rules are'} on by default. You can change them in step 3.
-              </div>
-            )}
+            <div className="faint" style={{ padding: '0 18px 14px', fontSize: 12.5 }}>
+              {auto
+                ? 'Estimated from the average of the last 7 days.'
+                : step < 2 && selected.size > 0 && `${rulesOn} skip ${rulesOn === 1 ? 'rule is' : 'rules are'} on by default. You can change them in step 3.`}
+            </div>
           </aside>
         </div>
       </div>
@@ -159,14 +241,18 @@ export default function RunWizard() {
           {step === 0 ? 'Cancel' : 'Back'}
         </Button>
         <div className="spacer" />
-        {step === 0 && selected.size === 0 && <span className="faint" style={{ fontSize: 13 }}>Select at least one session to continue</span>}
+        {step === 0 && !auto && selected.size === 0 && <span className="faint" style={{ fontSize: 13 }}>Select at least one session to continue</span>}
         {step === 1 && chosenEvals.length === 0 && <span className="faint" style={{ fontSize: 13 }}>Select at least one evaluation</span>}
         {step < 3 ? (
           <Button variant="primary" disabled={!canNext} onClick={() => setStep(step + 1)}>
             {step === 2 ? 'Review' : 'Continue'} <ArrowRight size={15} />
           </Button>
+        ) : auto ? (
+          <Button variant="primary" size="lg" disabled={!canNext} onClick={finish}>
+            <CalendarClock size={15} /> Create automation
+          </Button>
         ) : (
-          <Button variant="primary" size="lg" disabled={!canNext} onClick={run}>
+          <Button variant="primary" size="lg" disabled={!canNext} onClick={finish}>
             <Play size={14} fill="currentColor" /> Run Evaluation
           </Button>
         )}
@@ -190,15 +276,51 @@ export default function RunWizard() {
   )
 }
 
-function SessionsStep({ filtered, selected, toggle, selectFiltered, allFilteredSelected, someFilteredSelected, range, setRange, search, setSearch, shown, setShown, setPreview, clear }) {
-  if (SESSIONS.length === 0) {
+function AutoScheduleStep({ agent, time, setTime, runToday, setRunToday, avg }) {
+  const todaySoFar = sessionsOnDay(agent.id, TODAY, NOW.toISOString()).length
+  return (
+    <div className="card">
+      <div className="card-body" style={{ padding: 20 }}>
+        <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
+          <span>Every day at</span>
+          <select className="select" value={time} onChange={(e) => setTime(e.target.value)} aria-label="Run time">
+            {TIMES.map((t) => <option key={t} value={t}>{timeLabel(t)}</option>)}
+          </select>
+          <span>evaluate all of <strong>{agent.name}</strong>'s sessions from that day.</span>
+        </div>
+        <div className="muted" style={{ fontSize: 13, marginTop: 10 }}>
+          Times are in your workspace time zone (Asia/Kolkata). Each night creates a new run in Runs, so you can compare days.
+        </div>
+        <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', marginTop: 18 }}>
+          <div className="card card-body" style={{ background: 'var(--bg)' }}>
+            <div className="eyebrow">Typical day</div>
+            <div className="stat-value num">~{n(avg)} <small>sessions</small></div>
+            <div className="stat-note">average over the last 7 days</div>
+          </div>
+          <div className="card card-body" style={{ background: 'var(--bg)' }}>
+            <div className="eyebrow">Today so far</div>
+            <div className="stat-value num">{n(todaySoFar)} <small>sessions</small></div>
+            <div className="stat-note">included in tonight's first run</div>
+          </div>
+        </div>
+        <label className="row" style={{ marginTop: 16, gap: 10, cursor: 'pointer' }}>
+          <Checkbox checked={runToday} onChange={setRunToday} label="Also run now on today's sessions" />
+          <span>Also run now on today's {plural(todaySoFar, 'session')} so far</span>
+        </label>
+      </div>
+    </div>
+  )
+}
+
+function SessionsStep({ filtered, selected, toggle, selectFiltered, allFilteredSelected, someFilteredSelected, range, setRange, search, setSearch, shown, setShown, setPreview, clear, empty }) {
+  if (empty) {
     return <EmptyState icon={Inbox} title="No sessions yet">No sessions are available for evaluation yet.</EmptyState>
   }
   return (
     <>
       <div className="section-head" style={{ marginBottom: 14 }}>
         <div>
-          <h2 className="section-title">Which conversations should we check?</h2>
+          <h2 className="section-title" style={{ fontSize: 14 }}>Which conversations should we check?</h2>
           <div className="section-desc">Pick past production sessions. Open any session to read the conversation first.</div>
         </div>
       </div>
@@ -343,23 +465,25 @@ function EvaluationsStep({ evaluations, evalIds, setEvalIds, chosen, onCreate })
   )
 }
 
-function Funnel({ selected, skipped, evaluated }) {
+function Funnel({ selected, skipped, evaluated, auto }) {
+  const a = auto ? '~' : ''
   return (
     <div className="funnel">
-      <div className="cell"><div className="eyebrow">Selected</div><div className="stat-value num">{n(selected)}</div></div>
+      <div className="cell"><div className="eyebrow">{auto ? 'Sessions per day' : 'Selected'}</div><div className="stat-value num">{a}{n(selected)}</div></div>
       <ArrowRight className="arrow" size={18} />
-      <div className="cell"><div className="eyebrow">Will be skipped</div><div className="stat-value num" style={{ color: skipped ? 'var(--warn)' : undefined }}>{n(skipped)}</div></div>
+      <div className="cell"><div className="eyebrow">Will be skipped</div><div className="stat-value num" style={{ color: skipped ? 'var(--warn)' : undefined }}>{a}{n(skipped)}</div></div>
       <ArrowRight className="arrow" size={18} />
-      <div className="cell" style={{ borderColor: 'var(--border-strong)' }}><div className="eyebrow">Will be evaluated</div><div className="stat-value num">{n(evaluated)}</div></div>
+      <div className="cell" style={{ borderColor: 'var(--border-strong)' }}><div className="eyebrow">Will be evaluated</div><div className="stat-value num">{a}{n(evaluated)}</div></div>
     </div>
   )
 }
 
-function SkipRulesStep({ rules, setRules, sessions, selected, skipped, evaluated }) {
+function SkipRulesStep({ rules, setRules, sessions, selected, skipped, evaluated, auto }) {
   const set = (k, patch) => setRules((r) => ({ ...r, [k]: { ...r[k], ...patch } }))
   const only = (k) => {
     const solo = Object.fromEntries(Object.keys(rules).map((key) => [key, { ...rules[key], on: key === k }]))
-    return sessions.filter((s) => skipReason(s, solo)).length
+    const hits = sessions.filter((s) => skipReason(s, solo)).length
+    return auto ? Math.round(hits / 7) : hits
   }
   const num = (k, max = 999, min = 1) => (
     <input
@@ -389,7 +513,7 @@ function SkipRulesStep({ rules, setRules, sessions, selected, skipped, evaluated
           <div className="section-desc">Exclude sessions that aren't useful for this evaluation.</div>
         </div>
       </div>
-      <Funnel selected={selected} skipped={skipped} evaluated={evaluated} />
+      <Funnel selected={selected} skipped={skipped} evaluated={evaluated} auto={auto} />
       <div className="card" style={{ marginTop: 16 }}>
         {ROWS.map(({ k, group, body }) => {
           const hits = only(k)
@@ -407,7 +531,7 @@ function SkipRulesStep({ rules, setRules, sessions, selected, skipped, evaluated
           )
         })}
       </div>
-      {selected > 0 && evaluated === 0 && (
+      {!auto && selected > 0 && evaluated === 0 && (
         <div className="empty" style={{ marginTop: 16, padding: 24 }}>
           <h3>All selected sessions were excluded by your skip rules.</h3>
           <p style={{ marginBottom: 0 }}>Turn off a rule or loosen its limit to evaluate at least one session.</p>
@@ -417,8 +541,8 @@ function SkipRulesStep({ rules, setRules, sessions, selected, skipped, evaluated
   )
 }
 
-function ReviewStep({ name, setName, selected, evaluatedCount, skippedCount, checks, rulesOn, skipped, evals, goToRules }) {
-  if (evaluatedCount === 0) {
+function ReviewStep({ name, setName, selected, evaluatedCount, skippedCount, checks, rulesOn, skipped, evals, goToRules, auto, agent, time, runToday }) {
+  if (!auto && evaluatedCount === 0) {
     return (
       <EmptyState icon={FilterX} title="Nothing left to evaluate" action={<Button variant="primary" onClick={goToRules}>Review Skip Rules</Button>}>
         All selected sessions were excluded by your skip rules.
@@ -426,26 +550,39 @@ function ReviewStep({ name, setName, selected, evaluatedCount, skippedCount, che
     )
   }
   const reasons = Object.values(skipped).reduce((acc, r) => ({ ...acc, [r]: (acc[r] || 0) + 1 }), {})
+  const approx = auto ? '~' : ''
   return (
     <>
       <div className="section-head">
         <div>
-          <h2 className="section-title">Evaluation summary</h2>
-          <div className="section-desc">Check what will run. Results appear as soon as the run finishes.</div>
+          <h2 className="section-title">{auto ? 'Automation summary' : 'Evaluation summary'}</h2>
+          <div className="section-desc">
+            {auto
+              ? `Every day at ${timeLabel(time)}, this runs on all of ${agent.name}'s sessions from that day. Each night's results appear in Runs.`
+              : 'Check what will run. Results appear as soon as the run finishes.'}
+          </div>
         </div>
       </div>
       <div className="field" style={{ maxWidth: 420 }}>
-        <label htmlFor="run-name">Run name</label>
-        <input id="run-name" className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Weekly QA" />
+        <label htmlFor="run-name">{auto ? 'Automation name' : 'Run name'}</label>
+        <input id="run-name" className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={auto ? 'e.g. Nightly check' : 'e.g. Weekly QA'} />
       </div>
       <div className="grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
-        <div className="card card-body"><div className="eyebrow">Sessions</div><div className="stat-value num">{n(evaluatedCount)}</div><div className="stat-note">of {n(selected)} selected</div></div>
+        {auto ? (
+          <div className="card card-body"><div className="eyebrow">Schedule</div><div className="stat-value" style={{ fontSize: 22 }}>Daily</div><div className="stat-note">at {timeLabel(time)} · {runToday ? 'first run now' : 'first run tonight'}</div></div>
+        ) : (
+          <div className="card card-body"><div className="eyebrow">Sessions</div><div className="stat-value num">{n(evaluatedCount)}</div><div className="stat-note">of {n(selected)} selected</div></div>
+        )}
         <div className="card card-body"><div className="eyebrow">Evaluations</div><div className="stat-value num">{evals.length}</div><div className="stat-note">{evals.filter((e) => e.required).length} required</div></div>
-        <div className="card card-body"><div className="eyebrow">Total checks</div><div className="stat-value num">{n(checks)}</div><div className="stat-note">{plural(evals.length, 'check')} per session</div></div>
+        <div className="card card-body">
+          <div className="eyebrow">{auto ? 'Checks per day' : 'Total checks'}</div>
+          <div className="stat-value num">{approx}{n(checks)}</div>
+          <div className="stat-note">{auto ? `~${n(evaluatedCount)} sessions a day` : `${plural(evals.length, 'check')} per session`}</div>
+        </div>
         <div className="card card-body">
           <div className="eyebrow">Skip rules</div>
           <div className="stat-value num">{rulesOn} <small>enabled</small></div>
-          <div className="stat-note">{plural(skippedCount, 'session')} excluded · <button className="link" onClick={goToRules}>Edit</button></div>
+          <div className="stat-note">{approx}{plural(skippedCount, 'session')} excluded{auto && ' a day'} · <button className="link" onClick={goToRules}>Edit</button></div>
         </div>
       </div>
 
@@ -462,7 +599,10 @@ function ReviewStep({ name, setName, selected, evaluatedCount, skippedCount, che
           </div>
         </div>
         <div className="card">
-          <div className="card-head"><h3 className="card-title">Excluded sessions</h3></div>
+          <div className="card-head">
+            <h3 className="card-title">Excluded sessions</h3>
+            {auto && <span className="faint" style={{ fontSize: 12.5, marginLeft: 'auto' }}>last 7 days</span>}
+          </div>
           <div className="card-body" style={{ padding: '6px 18px' }}>
             {Object.keys(reasons).length === 0 ? (
               <div className="muted" style={{ padding: '9px 0' }}>No sessions excluded.</div>

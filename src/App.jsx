@@ -7,6 +7,7 @@ import { Button, PageHeader } from './components/ui.jsx'
 import EvaluationsPage from './pages/EvaluationsPage.jsx'
 import RunWizard from './pages/RunWizard.jsx'
 import RunsPage from './pages/RunsPage.jsx'
+import AutomationsPage from './pages/AutomationsPage.jsx'
 import RunResults from './pages/RunResults.jsx'
 import SessionResult from './pages/SessionResult.jsx'
 import { SessionsPage, SessionDetail } from './pages/SessionsPage.jsx'
@@ -59,13 +60,14 @@ export default function App() {
 
   let page
   if (section === 'evaluations') page = <EvaluationsPage query={query} />
-  else if (section === 'runs' && id === 'new') page = <RunWizard />
+  else if (section === 'runs' && id === 'new') page = <RunWizard query={query} />
   else if (section === 'runs' && id) {
     const run = runs.find((r) => r.id === id)
     if (!run) page = <NotFound />
     else if (sub === 'sessions' && subId && run.results[subId]) page = <SessionResult key={subId} run={run} sessionId={subId} />
     else page = <RunResults key={run.id + query.toString()} run={run} query={query} />
-  } else if (section === 'runs') page = <RunsPage />
+  } else if (section === 'runs') page = <RunsPage key={query.get('trigger') ?? ''} query={query} />
+  else if (section === 'automations') page = <AutomationsPage query={query} />
   else if (section === 'sessions' && id && SESSION_BY_ID[id]) page = <SessionDetail key={id} sessionId={id} />
   else if (section === 'sessions') page = <SessionsPage />
   else page = <NotInPrototype section={section || 'home'} />

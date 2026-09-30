@@ -46,7 +46,7 @@ export default function SessionResult({ run, sessionId }) {
       <PageHeader
         crumbs={[
           { label: 'Home', href: '#/home' },
-          { label: 'Runs', href: '#/runs' },
+          { label: 'Runs', href: `#/runs?agent=${run.agentId}` },
           { label: run.name, href: `#/runs/${run.id}` },
           { label: sessionId },
         ]}
