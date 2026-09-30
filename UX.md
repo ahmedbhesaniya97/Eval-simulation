@@ -1,997 +1,695 @@
-# AI Voice Agent Evaluation & Simulation — UX Design Prompt
+# Voice Agent Evaluation — UI/UX Guidelines
 
-## Objective
+## 1. Product Goal
 
-Design a simple, modern, low-code UX for evaluating and testing AI voice agents.
+Build a simple evaluation workflow for a low-code voice AI platform.
 
-The primary users are **partially non-technical users** who build voice agents without needing to understand evaluation frameworks, LLM judges, simulation engines, or complex observability concepts.
+The user should be able to:
 
-The product should help users answer three simple questions:
+1. Create and manage evaluations.
+2. Select past production sessions.
+3. Choose which evaluations to run.
+4. Optionally exclude sessions using skip rules.
+5. Run the evaluation.
+6. Understand results at both aggregate and individual-session levels.
+7. Review previous evaluation runs and compare outcomes over time.
 
-1. **Before production:** Is my agent ready to go live?
-2. **During/after production:** Is my agent actually performing well in real conversations?
-3. **During development:** What happens when different types of customers interact with my agent?
-
-The experience should be **minimalistic, outcome-focused, and easy to understand**.
-
-Do not expose unnecessary technical complexity in the primary UX.
-
----
-
-# 1. Core Product Model
-
-The UX should be organized around three connected capabilities:
-
-```text
-                 AI Agent
-                    │
-          ┌─────────┼─────────┐
-          ↓         ↓         ↓
-      Simulation  Evaluation  Production
-          │         │           │
-          ↓         ↓           ↓
-      Test calls   Validate    Monitor
-      scenarios    readiness   real calls
-                    │
-                    ↓
-                Insights
-```
-
-### Simulation
-
-Simulate realistic customers interacting with the agent.
-
-### Pre-Production Evaluation
-
-Run controlled tests against the agent before deployment.
-
-### Post-Production Evaluation
-
-Evaluate real conversations and identify issues, trends, and regressions.
-
-These should feel like **one unified system**, not three unrelated features.
+Keep **Evaluation completely separate from Simulation**.
 
 ---
 
-# 2. Primary UX Principle
+# 2. Core Mental Model
 
-The product should NOT primarily communicate:
+Use this simple model throughout the UI:
 
-> "Your agent scored 87/100."
+**Evaluation**
 
-Instead communicate:
+> "How do I know if my agent is performing correctly?"
 
-> "Your agent successfully completed 18 of 20 test scenarios."
+**Evaluation Definition**
 
-And explain:
+> "What should I check?"
 
-> "2 scenarios need attention because the agent failed to verify the customer before completing the action."
+**Session**
 
-Every evaluation result should answer:
+> "Which real conversations should I check?"
 
-* What happened?
-* Was it successful?
-* Why?
-* What should I investigate?
+**Evaluation Run**
 
----
+> "Run these checks against these sessions."
 
-# 3. Main Navigation
+**Result**
 
-Keep navigation simple.
+> "What did we learn?"
 
-Suggested structure:
-
-```text
-Agent
-
-Build
-Test
-  ├── Simulations
-  └── Evaluations
-
-Production
-  └── Evaluations
-
-Analytics
-```
-
-If the existing application already has navigation, integrate into the current structure rather than creating unnecessary top-level navigation.
-
-A possible simpler structure:
-
-```text
-Agent
-├── Build
-├── Test
-└── Monitor
-```
-
-Where:
-
-```text
-Test
-├── Simulation
-└── Evaluation
-
-Monitor
-└── Production Evaluation
-```
-
-Prefer the smallest navigation structure that works with the existing application.
+Do not expose technical terminology unless necessary.
 
 ---
 
-# 4. Evaluation Dashboard
+# 3. Evaluation Types
 
-Create a central evaluation overview.
+Provide a few built-in evaluations that work immediately.
 
-Example:
+Example standard evaluations:
 
-```text
-Evaluation
+### Goal Completion
 
-Your agent has been evaluated across 42 conversations.
+Did the agent successfully complete the user's request?
 
-┌──────────────────────────────────────────────┐
-│  38 Successful       4 Need Attention        │
-└──────────────────────────────────────────────┘
+### Response Quality
 
-Goal Achievement       ✓ 91%
-Instruction Following  ✓ 96%
-Action Completion      ✓ 94%
-Conversation Quality   ⚠ 82%
+Did the agent provide an appropriate and useful response?
 
-Recent Issues
-
-⚠ Customer verification was skipped
-⚠ Agent repeated a question
-⚠ Transfer was not completed
-
-[ View Evaluations ]
-```
-
-Do not overwhelm the user with dozens of metrics.
-
-Show the **few signals that matter most**.
-
----
-
-# 5. Evaluation Categories
-
-Use human-readable evaluation categories.
-
-Recommended categories:
-
-### Goal Achievement
-
-Did the agent accomplish what the customer wanted?
-
-Example:
-
-> Customer successfully booked an appointment.
-
-### Instruction Following
+### Policy / Instruction Following
 
 Did the agent follow the configured instructions?
 
-Example:
+### Conversation Outcome
 
-> Agent verified the customer before accessing account information.
+Did the conversation end with the expected outcome?
 
-### Action Completion
+The exact standard evaluations can be changed later.
 
-Did the agent correctly perform required actions?
+Also provide:
 
-Example:
+### Custom Evaluation
 
-> Appointment was successfully created.
+Users can create their own evaluation.
 
-### Accuracy
+Required fields:
 
-Did the agent provide correct information?
-
-Example:
-
-> Agent provided the correct cancellation policy.
-
-### Conversation Quality
-
-Was the conversation clear and efficient?
+* **Evaluation name**
+* **Success criteria**
+* **Failure criteria**
+* **Required** — Yes / No
 
 Example:
 
-> Agent repeated the same question twice.
+**Name**
 
-### Safety / Guardrails
+> Agent verifies customer identity
 
-Did the agent stay within configured boundaries?
+**Success criteria**
 
-Example:
+> The agent verifies the customer's identity before sharing account information.
 
-> Agent did not disclose restricted customer information.
+**Failure criteria**
 
-Not every agent needs every category.
+> The agent shares account information without verifying the customer.
 
-Only display categories that are relevant to the agent's configured behavior.
+**Required**
+
+> Yes
+
+Keep the creation experience simple. Do not expose advanced configuration in the first version.
 
 ---
 
-# 6. Evaluation Results
+# 4. Evaluation List
 
-Avoid making the primary result a numerical score.
+Create an **Evaluations** page.
 
-Prefer statuses:
+Each evaluation should show:
 
-```text
-✓ Successful
-⚠ Needs Attention
-✕ Failed
-```
+| Evaluation            | Type     | Required | Usage          | Status |
+| --------------------- | -------- | -------- | -------------- | ------ |
+| Goal Completion       | Standard | Yes      | 1,245 sessions | Active |
+| Response Quality      | Standard | No       | 1,245 sessions | Active |
+| Identity Verification | Custom   | Yes      | 430 sessions   | Active |
 
-For example:
+Actions:
 
-```text
-Evaluation Result
+* Create evaluation
+* Edit
+* Duplicate
+* Enable / Disable
+* Delete
 
-✓ Goal achieved
+Use clear visual distinction between:
 
-The customer successfully completed the appointment booking.
+**Standard** and **Custom**
 
-✓ Instructions followed
-
-The agent verified the customer's information before booking.
-
-⚠ Conversation quality
-
-The agent asked for the customer's phone number twice.
-
-✓ Action completed
-
-Appointment was successfully created.
-```
-
-If numerical data is useful, show it as supporting information rather than the primary UX.
+Avoid making the page feel like an engineering configuration screen.
 
 ---
 
-# 7. Evaluation Detail Page
+# 5. Start Evaluation Flow
 
-Every evaluation should have a detailed view.
+Primary CTA:
 
-Suggested layout:
+**Run Evaluation**
+
+The flow should be a simple step-by-step process.
+
+### Step 1 — Select Sessions
+
+Allow users to select past sessions.
+
+Support:
+
+* Multi-select
+* Select all
+* Search
+* Date range
+* Filters
+* Session preview
+
+Show:
+
+> **245 sessions selected**
+
+Each session should provide enough information to identify it:
 
 ```text
-Evaluation #1842
+Session
+Sep 30, 2026 · 04:32 PM
 
-Status
-✓ Successful
+Duration: 3m 42s
+Turns: 12
+Outcome: Completed
+```
 
-Scenario
-Customer wants to book an appointment
+The user should be able to open a session and inspect the conversation before selecting it.
 
-Customer Persona
-Impatient + Fast Speaker
+---
 
-Environment
-Moderate background noise
+# 6. Step 2 — Select Evaluations
 
-────────────────────────────
+Show available evaluations.
 
-Outcome
+Example:
 
-Appointment successfully booked.
+```text
+Select evaluations
 
-────────────────────────────
+☑ Goal Completion
+☑ Response Quality
+☐ Policy Compliance
+☑ Identity Verification
+```
 
+For each evaluation show a short description.
+
+Example:
+
+> **Goal Completion**
+> Checks whether the agent achieved the customer's requested outcome.
+
+At the top show:
+
+> **3 evaluations selected**
+
+Avoid forcing users to configure every evaluation again.
+
+The evaluation definition already contains its criteria.
+
+---
+
+# 7. Step 3 — Skip Rules
+
+Make this an optional section.
+
+Label:
+
+**Skip Rules**
+
+Description:
+
+> Exclude sessions that aren't useful for this evaluation.
+
+Use simple controls.
+
+### Available rules
+
+**Call duration**
+
+* Skip calls shorter than `[X]` seconds
+* Skip calls longer than `[X]` seconds
+
+**Conversation length**
+
+* Skip calls with fewer than `[N]` turns
+
+**Agent participation**
+
+* Skip calls where the agent never spoke
+
+**Voicemail**
+
+* Skip voicemail sessions
+
+Use toggles/checkboxes so unused rules remain hidden or disabled.
+
+Example:
+
+```text
+Skip Rules
+
+☑ Skip calls shorter than    [30] seconds
+
+☐ Skip calls longer than     [10] minutes
+
+☑ Skip calls with fewer than [3] turns
+
+☑ Skip calls where agent never spoke
+
+☑ Skip voicemail sessions
+```
+
+Before running, show an estimate:
+
+> **245 sessions selected**
+> **18 sessions will be skipped**
+> **227 sessions will be evaluated**
+
+This is important because users should know what will actually be evaluated.
+
+---
+
+# 8. Review Before Running
+
+Before the final action, show a simple summary.
+
+```text
+Evaluation Summary
+
+Sessions
+227
+
+Evaluations
+3
+
+Total checks
+681
+
+Skip rules
+4 enabled
+18 sessions excluded
+```
+
+Then:
+
+**Run Evaluation**
+
+Do not hide important information behind another settings page.
+
+---
+
+# 9. Running State
+
+After clicking Run Evaluation, show progress.
+
+Example:
+
+```text
+Running evaluation...
+
+Sessions
+████████████░░░░  78 / 100
+
+Evaluations
+234 / 300 checks completed
+
+Estimated remaining: ~2 min
+```
+
+Allow the user to leave the page without losing the run.
+
+The run should continue in the background.
+
+When finished:
+
+> **Evaluation completed**
+
+---
+
+# 10. Evaluation Run Results
+
+This is the most important screen.
+
+Start with an aggregate summary.
+
+Example:
+
+```text
+Evaluation Results
+
+227 sessions evaluated
+
+Overall
+78% Passed
+
+┌───────────────┬────────┬────────┐
+│ Evaluation    │ Passed │ Failed │
+├───────────────┼────────┼────────┤
+│ Goal Completion │ 91%  │ 9%     │
+│ Response Quality│ 82%  │ 18%    │
+│ Identity Check  │ 61%  │ 39%    │
+└───────────────┴────────┴────────┘
+```
+
+Keep the summary focused on the information a user needs to understand the agent's performance.
+
+---
+
+# 11. Required vs Optional Evaluations
+
+If an evaluation is marked **Required**, clearly distinguish it from optional evaluations.
+
+Example:
+
+```text
+Required evaluations
+2 / 3 passed
+
+Optional evaluations
+5 / 7 passed
+```
+
+A session can therefore have:
+
+```text
+Required:  PASS
+Optional:  FAIL
+```
+
+The UI should make it obvious that these have different importance.
+
+Do not convert this into a single arbitrary score unless the product later defines a clear scoring model.
+
+---
+
+# 12. Session-Level Results
+
+Below the aggregate summary, show the individual sessions.
+
+Example:
+
+```text
+Sessions
+
+✓ Session #1234
+  Goal Completion       Passed
+  Response Quality      Passed
+  Identity Verification Passed
+
+⚠ Session #1235
+  Goal Completion       Passed
+  Response Quality      Failed
+  Identity Verification Failed
+
+✕ Session #1236
+  Goal Completion       Failed
+  Response Quality      Failed
+  Identity Verification Failed
+```
+
+Allow filtering:
+
+* All
+* Passed
+* Failed
+* Skipped
+
+Also allow filtering by evaluation.
+
+Example:
+
+> Show sessions where **Identity Verification failed**
+
+---
+
+# 13. Session Detail
+
+When the user opens a failed result, show the original conversation alongside the evaluation result.
+
+Example:
+
+```text
+Identity Verification
+FAILED
+
+Why?
+The agent shared account information before verifying
+the customer's identity.
+
+Success criteria
+Agent verifies identity before sharing account information.
+
+Failure criteria
+Agent shares account information without verification.
+```
+
+Then show the relevant conversation turns.
+
+Highlight the turns that are relevant to the evaluation.
+
+This is much more useful than simply showing:
+
+> FAILED
+
+The user should be able to understand **why**.
+
+---
+
+# 14. Previous Evaluation Runs
+
+Create a separate **Evaluation Runs** page.
+
+This is the history of executions, not the evaluation definitions.
+
+Example:
+
+| Run               | Sessions | Evaluations | Pass Rate | Date   |
+| ----------------- | -------: | ----------: | --------: | ------ |
+| Weekly QA         |      250 |           4 |       84% | Sep 30 |
+| Regression Check  |      100 |           4 |       81% | Sep 27 |
+| Production Review |      500 |           3 |       87% | Sep 20 |
+
+Each run should be clickable.
+
+---
+
+# 15. Aggregated Insights
+
+The Evaluation Runs page should help users understand trends without requiring them to inspect every session.
+
+Show:
+
+### Overall pass rate
+
+```text
+84%
+```
+
+### Evaluations with most failures
+
+```text
+Identity Verification     39% failed
+Response Quality          18% failed
+Goal Completion             9% failed
+```
+
+### Trend
+
+Show pass rate over previous runs.
+
+Example:
+
+```text
+Sep 10   76%
+Sep 17   79%
+Sep 24   82%
+Sep 30   84%
+```
+
+The goal is to answer:
+
+> **"Is my agent getting better or are problems increasing?"**
+
+Avoid overwhelming the user with dozens of metrics.
+
+---
+
+# 16. Important Empty States
+
+Design these intentionally.
+
+### No evaluations
+
+> Create your first evaluation to start measuring your agent.
+
+CTA:
+
+**Create Evaluation**
+
+### No sessions
+
+> No sessions are available for evaluation yet.
+
+### No sessions match skip rules
+
+> All selected sessions were excluded by your skip rules.
+
+CTA:
+
+**Review Skip Rules**
+
+### Evaluation still running
+
+Show progress rather than an empty result.
+
+---
+
+# 17. Recommended Navigation
+
+Keep Evaluation as its own top-level area.
+
+```text
 Evaluation
-
-✓ Goal Achievement
-✓ Instruction Following
-✓ Action Completion
-⚠ Conversation Quality
-
-────────────────────────────
-
-Issues
-
-⚠ Repeated Question
-
-The agent asked for the customer's phone number
-after it had already been provided.
-
-────────────────────────────
-
-Conversation
-
-Agent
-...
-
-Customer
-...
-
-Agent
-...
-
-[ Play Conversation ]
+├── Evaluations
+│   ├── Standard
+│   └── Custom
+│
+└── Runs
+    ├── Run history
+    └── Run results
 ```
 
-The conversation should be easily playable alongside the evaluation.
+Do not put Simulation inside Evaluation.
+
+Simulation should be a separate product area later.
 
 ---
 
-# 8. Pre-Production Evaluation
+# 18. Primary User Flow
 
-The pre-production experience should answer:
-
-> "Is my agent ready to deploy?"
-
-Users should be able to create a test suite.
-
-Example:
+The complete flow should feel like:
 
 ```text
-Pre-Production Evaluation
-
-Test Suite
-Customer Support — Release 12
-
-Scenarios
-✓ Cancel order
-✓ Modify order
-✓ Invalid order number
-✓ Customer refuses verification
-✓ Escalation request
-
-Personas
-✓ Calm
-✓ Impatient
-✓ Confused
-✓ Fast Speaker
-
-[ Run Evaluation ]
-```
-
-After execution:
-
-```text
-Evaluation Complete
-
-18 / 20 scenarios passed
-
-2 scenarios need attention
-
-Issues found:
-
-⚠ Verification skipped
-⚠ Agent failed to handle customer interruption
-
-[ Review Issues ]
-```
-
-The UX should make it easy to compare the current agent version against previous test runs.
-
----
-
-# 9. Simulation
-
-Simulation is the mechanism used to generate realistic conversations.
-
-The user should NOT have to manually write every conversation.
-
-The system should derive scenarios from:
-
-* Agent system instructions
-* Tools
-* Functions
-* Knowledge/context
-* Configured goals
-* User-defined test objectives
-
-Example:
-
-```text
-Generate Test Scenarios
-
-Based on your agent configuration, we found:
-
-8 possible customer scenarios
-
-✓ Book appointment
-✓ Cancel appointment
-✓ Reschedule appointment
-✓ Ask about pricing
-✓ Provide invalid information
-✓ Refuse verification
-✓ Ask unrelated question
-✓ Request human support
-
-[ Review Scenarios ]
-```
-
-Allow users to edit or add scenarios manually.
-
----
-
-# 10. Scenario Structure
-
-Each scenario should have:
-
-```text
-Scenario
-
-Goal
-Customer wants to cancel an order.
-
-Expected Behavior
-Agent must verify the customer's order
-before cancellation.
-
-Required Actions
-1. Ask for order ID
-2. Verify order
-3. Cancel order
-
-Failure Conditions
-- Cancellation before verification
-- Incorrect information
-- Failure to complete cancellation
-```
-
-Do not expose the underlying evaluation prompt or evaluator implementation.
-
-The user should think in terms of **expected behavior**, not LLM evaluation logic.
-
----
-
-# 11. Human Personas
-
-Personas control **how the simulated customer behaves**.
-
-Scenario controls:
-
-> What does the customer want?
-
-Persona controls:
-
-> How does the customer behave?
-
-This distinction is critical.
-
-Example:
-
-```text
-Scenario:
-Customer wants to cancel an order.
-
-Persona:
-Impatient Customer
-```
-
-The same scenario can then be tested with multiple personas.
-
----
-
-# 12. Persona Configuration
-
-Provide simple presets.
-
-Recommended presets:
-
-```text
-Calm Customer
-Fast Speaker
-Slow Speaker
-Confused Customer
-Impatient Customer
-Talkative Customer
-Distracted Customer
-Difficult Customer
-```
-
-Each persona can control:
-
-### Communication
-
-* Speaking speed
-* Response length
-* Pause frequency
-* Interruptions
-* Filler words
-* Self-corrections
-
-### Behavior
-
-* Changes mind
-* Gives incomplete information
-* Goes off-topic
-* Repeats questions
-* Refuses to answer
-* Becomes impatient
-* Challenges the agent
-
-### Audio Environment
-
-* Background noise
-* Echo
-* Poor microphone quality
-* Low volume
-* Intermittent audio
-
-Keep these controls hidden behind:
-
-```text
-Advanced settings
-```
-
-The default experience should use presets.
-
----
-
-# 13. Persona UX
-
-Example:
-
-```text
-Customer Persona
-
-Choose how the simulated customer behaves.
-
-○ Calm
-○ Impatient
-● Fast Speaker
-○ Confused
-○ Talkative
-
-Advanced
-────────────────────
-
-Speaking Speed
-[──────●────]
-
-Interruptions
-[────●──────]
-
-Response Length
-[──────●────]
-
-Background Noise
-[───●────────]
-
-[ Save Persona ]
-```
-
-Do not expose technical values such as:
-
-```text
-interrupt_probability = 0.37
-noise_db = -18
-pause_distribution = ...
-```
-
-Translate these into human-readable controls.
-
----
-
-# 14. Scenario × Persona
-
-Make it easy to combine them.
-
-Example:
-
-```text
-Scenario
-Cancel Order
-
-Personas
-
-✓ Calm Customer
-✓ Impatient Customer
-✓ Fast Speaker
-✓ Confused Customer
-
-Environment
-
-✓ Background Noise
-
-Total simulations:
-4
-```
-
-Explain:
-
-> This will run the same scenario with 4 different customer behaviors.
-
-This creates useful coverage without requiring the user to manually create four scenarios.
-
----
-
-# 15. Simulation Execution
-
-During simulation, show lightweight progress.
-
-Example:
-
-```text
-Running Simulation
-
-Scenario 4 of 10
-
-Customer:
-Impatient + Fast Speaker
-
-Environment:
-Background Noise
-
-● Connecting
-● Conversation
-● Evaluating
-
-Please wait...
-```
-
-Do not expose internal model chains, evaluator prompts, or infrastructure details.
-
----
-
-# 16. Simulation Results
-
-After simulation:
-
-```text
-Simulation Results
-
-10 simulations completed
-
-✓ 8 Successful
-⚠ 2 Need Attention
-
-Common Issues
-
-2 × Agent repeated questions
-1 × Verification was skipped
-1 × Agent struggled with interruptions
-
-Persona Performance
-
-Calm Customer       ✓
-Fast Speaker        ✓
-Impatient Customer  ⚠
-Confused Customer   ⚠
-
-[ Review Results ]
-```
-
-This allows users to discover patterns.
-
----
-
-# 17. Post-Production Evaluation
-
-Production evaluation should work on real conversations.
-
-The user should see:
-
-```text
-Production Evaluation
-
-Last 7 days
-
-124 conversations evaluated
-
-✓ 103 Successful
-⚠ 17 Need Attention
-✕ 4 Failed
-
-Common Issues
-
-23% — Repeated questions
-11% — Failed transfers
-7%  — Incorrect information
-```
-
-Focus on **patterns and actionable issues**, not raw telemetry.
-
----
-
-# 18. Production Conversation View
-
-For each real conversation:
-
-```text
-Conversation
-
-Status
-⚠ Needs Attention
-
-Outcome
-Customer's request was not completed.
-
-Reason
-
-The agent transferred the call but the
-transfer failed.
-
-Conversation
-
-[ Audio Player ]
-
-Customer:
-"I need to speak with billing."
-
-Agent:
-"Sure, I'll transfer you."
-
-...
-
-Evaluation Findings
-
-✕ Action Completion
-Transfer was not successfully completed.
-
-✓ Instruction Following
-Agent correctly attempted the transfer.
-
-[ View Full Conversation ]
+Evaluation
+    ↓
+Run Evaluation
+    ↓
+Select Sessions
+    ↓
+Select Evaluations
+    ↓
+Configure Skip Rules
+    ↓
+Review
+    ↓
+Run
+    ↓
+Results
+    ↓
+Aggregate Insights
+    ↓
+Session Details
 ```
 
 ---
 
-# 19. Issues / Insights
+# 19. UX Principles
 
-Create an aggregated issue view.
+### Keep configuration minimal
 
-Example:
+Users should not need to understand how evaluation works technically.
+
+### Show impact before execution
+
+Always show:
+
+> Selected → Skipped → Evaluated
+
+before running.
+
+### Results first, details second
+
+First answer:
+
+> How did the agent perform?
+
+Then allow users to investigate:
+
+> Why did it fail?
+
+### Make failures actionable
+
+Don't only show:
+
+> Failed
+
+Show:
+
+> Failed because the agent shared account information before verification.
+
+### Preserve history
+
+Every evaluation run should remain accessible.
+
+### Separate definitions from runs
+
+**Evaluation** = the rule.
+
+**Run** = an execution of that rule against sessions.
+
+This distinction is important for your data model and UX.
+
+---
+
+# 20. Recommended MVP Scope
+
+For the first version, keep the scope to:
+
+### Evaluation Definitions
+
+* 3–4 standard evaluations
+* Custom evaluations
+* Name
+* Success criteria
+* Failure criteria
+* Required / optional
+
+### Evaluation Execution
+
+* Multi-select sessions
+* Multi-select evaluations
+* Skip rules
+* Review before running
+* Background execution
+
+### Results
+
+* Aggregate pass/fail
+* Evaluation-level breakdown
+* Session-level results
+* Failed evaluation explanation
+* Conversation inspection
+
+### History
+
+* Previous evaluation runs
+* Aggregate results
+* Basic trend
+
+Do **not** include Simulation configuration in this workflow.
+
+Simulation can later consume the same evaluation definitions:
 
 ```text
-Issues
-
-Most common issues this week
-
-1. Repeated questions
-   18 conversations
-
-2. Failed transfers
-   11 conversations
-
-3. Customer verification skipped
-   6 conversations
-
-4. Off-topic handling
-   4 conversations
+                    Evaluation Definition
+                           │
+                ┌──────────┴──────────┐
+                │                     │
+          Real Sessions          Simulation
+                │                     │
+                ▼                     ▼
+          Evaluation Run       Evaluation Run
+                │                     │
+                └──────────┬──────────┘
+                           ▼
+                         Results
 ```
 
-Clicking an issue should show the affected conversations.
-
-This turns individual evaluations into product insights.
-
----
-
-# 20. Feedback Loop
-
-The system should help users improve the agent.
-
-Example:
-
-```text
-Issue
-
-Agent repeatedly asks for phone number.
-
-Found in:
-12 conversations
-
-Possible cause:
-The agent does not appear to retain the
-phone number after collecting it.
-
-[ View Conversations ]
-
-[ Update Agent ]
-```
-
-Do NOT automatically change the agent's configuration.
-
-Instead provide a clear path:
-
-```text
-Issue
-   ↓
-Understand
-   ↓
-Review Conversation
-   ↓
-Modify Agent
-   ↓
-Run Simulation Again
-   ↓
-Evaluate
-```
-
-This creates a continuous development loop.
-
----
-
-# 21. Recommended Overall Flow
-
-The complete experience should feel like:
-
-```text
-BUILD AGENT
-     │
-     ↓
-GENERATE SCENARIOS
-     │
-     ↓
-CHOOSE PERSONAS
-     │
-     ↓
-RUN SIMULATION
-     │
-     ↓
-EVALUATE
-     │
-     ↓
-FIND ISSUES
-     │
-     ↓
-IMPROVE AGENT
-     │
-     ↓
-RUN AGAIN
-     │
-     ↓
-DEPLOY
-     │
-     ↓
-EVALUATE REAL CONVERSATIONS
-     │
-     ↓
-FIND PRODUCTION ISSUES
-     │
-     ↓
-IMPROVE AGENT
-```
-
-This loop should be the foundation of the UX.
-
----
-
-# 22. Important UX Rules
-
-### Keep it outcome-oriented
-
-Prefer:
-
-> "Customer verification was skipped."
-
-Instead of:
-
-> "Evaluator score: 0.71"
-
----
-
-### Use progressive disclosure
-
-Primary UI:
-
-```text
-✓ Successful
-⚠ Needs Attention
-✕ Failed
-```
-
-Then allow:
-
-```text
-View details →
-```
-
-for deeper information.
-
----
-
-### Avoid technical terminology
-
-Prefer:
-
-| Technical             | User-facing          |
-| --------------------- | -------------------- |
-| Evaluator             | Evaluation           |
-| Simulation Agent      | Simulated Customer   |
-| Evaluation Criteria   | Expected Behavior    |
-| Test Case             | Scenario             |
-| Persona Configuration | Customer Behavior    |
-| Latency               | Response Time        |
-| ASR Error             | Speech Understanding |
-| Tool Call             | Action               |
-| Evaluation Score      | Result               |
-| Regression            | New Issue            |
-
----
-
-### Don't overload the user with metrics
-
-The first screen should answer:
-
-1. Did it work?
-2. What went wrong?
-3. How often does it happen?
-4. What should I look at?
-
-Everything else can be secondary.
-
----
-
-# 23. Design Language
-
-Use a clean, modern SaaS interface.
-
-Prioritize:
-
-* Clear hierarchy
-* Minimal cards
-* Strong whitespace
-* Short explanations
-* Status indicators
-* Simple charts only where useful
-* Conversation/audio playback
-* Side panels or detail drawers where appropriate
-* Progressive disclosure
-* Consistent terminology
-
-Avoid:
-
-* Dashboard overload
-* Large walls of metrics
-* Excessive graphs
-* Technical jargon
-* Complex configuration forms
-* Score-heavy UX
-* Showing evaluator internals
-
-The product should feel closer to:
-
-> **"Test my AI employee"**
-
-than:
-
-> **"Configure an LLM evaluation framework."**
-
----
-
-# 24. Most Important User Journey
-
-Optimize the entire experience around this journey:
-
-```text
-I built my agent.
-        ↓
-What could go wrong?
-        ↓
-Generate scenarios.
-        ↓
-Test different types of customers.
-        ↓
-Show me where the agent failed.
-        ↓
-Let me hear/read the conversation.
-        ↓
-Help me understand the problem.
-        ↓
-I update my agent.
-        ↓
-I run the tests again.
-        ↓
-I deploy.
-        ↓
-Show me what is happening with real customers.
-        ↓
-Detect new issues.
-        ↓
-Improve the agent again.
-```
-
-The user should never need to understand how the simulator or evaluator works internally.
-
-The UX should make the **simulation → evaluation → improvement → production → evaluation** loop feel natural and continuous.
+This keeps the two systems separate while allowing them to share the same evaluation logic later.
