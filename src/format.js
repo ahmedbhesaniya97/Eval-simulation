@@ -18,3 +18,9 @@ export const dateTime = (iso) =>
 export const time = (iso) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 
 export const plural = (count, word, pluralWord = `${word}s`) => `${n(count)} ${count === 1 ? word : pluralWord}`
+
+// '23:30' → '11:30 PM'
+export function timeLabel(hhmm) {
+  const [h, m] = hhmm.split(':').map(Number)
+  return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
+}

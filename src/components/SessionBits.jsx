@@ -1,4 +1,5 @@
-import { Clock, MessagesSquare, PhoneIncoming, PhoneOutgoing } from 'lucide-react'
+import { Clock, MessagesSquare, PhoneIncoming, PhoneOutgoing, Bot } from 'lucide-react'
+import { AGENT_BY_ID } from '../data/agents.js'
 import { Drawer } from './ui.jsx'
 import Transcript from './Transcript.jsx'
 import { dateTime, duration } from '../format.js'
@@ -24,6 +25,7 @@ export function SessionMeta({ session }) {
   const Dir = session.direction === 'Inbound' ? PhoneIncoming : PhoneOutgoing
   return (
     <div className="row muted" style={{ gap: 16, fontSize: 13, flexWrap: 'wrap' }}>
+      <span className="row" style={{ gap: 5 }}><Bot size={13} /> {AGENT_BY_ID[session.agentId].name} <span className="mono faint">({session.agentId})</span></span>
       <span>{dateTime(session.startedAt)}</span>
       <span className="row" style={{ gap: 5 }}><Clock size={13} /> {duration(session.duration)}</span>
       <span className="row" style={{ gap: 5 }}><MessagesSquare size={13} /> {session.turnCount} turns</span>

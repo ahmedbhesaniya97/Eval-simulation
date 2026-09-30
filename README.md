@@ -17,15 +17,17 @@ npm run dev
 | Running state, continues in the background, toast when done | Opens after "Run Evaluation" |
 | Run results: aggregate, required vs optional, per-evaluation, session list + filters | Click any run |
 | Session detail: why it failed, criteria, highlighted turns | Click any session in a run |
-| Run history, most failures, pass-rate trend | Evaluation → Runs |
+| Run history, most failures, pass-rate trend, per agent | Evaluation → Runs (agent picker + Manual / Automated filter) |
+| Daily automated evaluation of each day's sessions | Evaluation → Automations, or "Automated, every day" in the run flow |
 
 ## Mock data
 
 Everything is generated deterministically in `src/data/`:
 
 - `templates.js`: conversation templates for a banking support agent, plus how each evaluation judges them (reason + relevant turns)
-- `sessions.js`: 1,500 production sessions (Aug 1 to Sep 30, 2026) with transcripts and latencies
+- `agents.js`: 3 agents (banking, clinic, retail) with version history
+- `sessions.js`: 3,400 production sessions across the agents (Aug 1 to Sep 30, 2026) with transcripts and latencies
 - `engine.js`: verdicts, skip rules, run summaries. Newer agent versions fail less often, so the trend improves.
-- `runs.js`: 8 historical runs
+- `runs.js`: manual runs per agent, plus automations and the nightly runs they produced
 
 State lives in memory (`src/store.jsx`). A reload resets it.

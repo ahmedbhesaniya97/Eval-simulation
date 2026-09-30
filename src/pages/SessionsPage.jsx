@@ -6,29 +6,36 @@ import { sessionStatus } from '../data/engine.js'
 import { Button, PageHeader, StatusIcon, statusLabel } from '../components/ui.jsx'
 import { SessionMeta } from '../components/SessionBits.jsx'
 import SessionView from '../components/SessionView.jsx'
+import { AGENTS, AGENT_BY_ID } from '../data/agents.js'
 import { dateTime, dateShort, duration, n } from '../format.js'
 
 export function SessionsPage() {
   const [search, setSearch] = useState('')
   const [shown, setShown] = useState(50)
+  const [agentId, setAgentId] = useState('all')
   const list = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return q ? SESSIONS.filter((s) => s.id.includes(q) || s.topic.toLowerCase().includes(q)) : SESSIONS
-  }, [search])
+    return SESSIONS.filter((s) => (agentId === 'all' || s.agentId === agentId) && (!q || s.id.includes(q) || s.topic.toLowerCase().includes(q)))
+  }, [search, agentId])
   return (
     <>
-      <PageHeader crumbs={[{ label: 'Home', href: '#/home' }, { label: 'Sessions' }]} title="Sessions" subtitle={`${n(SESSIONS.length)} production sessions for Northwind Support`} />
+      <PageHeader crumbs={[{ label: 'Home', href: '#/home' }, { label: 'Sessions' }]} title="Sessions" subtitle={`${n(SESSIONS.length)} production sessions across ${AGENTS.length} agents`} />
       <div className="page-inner">
         <div className="row" style={{ margin: '18px 0 12px' }}>
           <label className="search"><Search size={15} /><input className="input" placeholder="Search sessions" value={search} onChange={(e) => setSearch(e.target.value)} /></label>
+          <select className="select" value={agentId} onChange={(e) => { setAgentId(e.target.value); setShown(50) }} aria-label="Agent">
+            <option value="all">All agents</option>
+            {AGENTS.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.id})</option>)}
+          </select>
         </div>
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>Session</th><th>Started</th><th>Topic</th><th className="right">Duration</th><th className="right">Turns</th><th /></tr></thead>
+            <thead><tr><th>Session</th><th>Agent</th><th>Started</th><th>Topic</th><th className="right">Duration</th><th className="right">Turns</th><th /></tr></thead>
             <tbody>
               {list.slice(0, shown).map((s) => (
                 <tr key={s.id} className="clickable" onClick={() => navigate(`#/sessions/${s.id}`)}>
                   <td className="mono" style={{ fontSize: 13 }}>{s.id}</td>
+                  <td>{AGENT_BY_ID[s.agentId].name} <span className="faint mono" style={{ fontSize: 12 }}>({s.agentId})</span></td>
                   <td className="muted">{dateTime(s.startedAt)}</td>
                   <td className="muted">{s.topic}</td>
                   <td className="right num">{duration(s.duration)}</td>

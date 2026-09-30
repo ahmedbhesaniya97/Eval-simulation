@@ -2,32 +2,37 @@ import { useMemo, useState } from 'react'
 import { Check, X, ChevronRight, Search, RotateCcw, SearchX, Info } from 'lucide-react'
 import { useStore, navigate } from '../store.jsx'
 import { SESSION_BY_ID } from '../data/sessions.js'
+import { AGENT_BY_ID } from '../data/agents.js'
+import { TriggerBadge } from './RunsPage.jsx'
 import { summarizeRun, sessionStatus } from '../data/engine.js'
 import { Button, PageHeader, StatusBadge, StatusIcon, RequiredBadge, EmptyState, PassBar, statusLabel } from '../components/ui.jsx'
-import { dateTime, duration, n, pct, plural } from '../format.js'
+import { dateTime, dateShort, duration, n, pct, plural } from '../format.js'
 
 const ORDER = { failed: 0, review: 1, passed: 2, skipped: 3 }
 const FILTERS = ['all', 'passed', 'review', 'failed', 'skipped']
 const PAGE = 30
 
 export default function RunResults({ run, query }) {
-  const crumbs = [{ label: 'Home', href: '#/home' }, { label: 'Evaluation', href: '#/evaluations' }, { label: 'Runs', href: '#/runs' }, { label: run.name }]
+  const { automations } = useStore()
+  const agent = AGENT_BY_ID[run.agentId]
+  const runsHref = `#/runs?agent=${run.agentId}`
+  const crumbs = [{ label: 'Home', href: '#/home' }, { label: 'Runs', href: runsHref }, { label: agent.name, href: runsHref }, { label: run.name }]
   return (
     <>
       <PageHeader
         crumbs={crumbs}
         title={run.name}
-        back="#/runs"
-        badge={<StatusBadge status={run.status} large />}
-        actions={run.status === 'completed' && <Button onClick={() => navigate('#/runs/new')}><RotateCcw size={14} /> Run again</Button>}
+        back={runsHref}
+        badge={<><StatusBadge status={run.status} large /><TriggerBadge run={run} automations={automations} /></>}
+        actions={run.status === 'completed' && run.trigger.type === 'manual' && <Button onClick={() => navigate(`#/runs/new?agent=${run.agentId}`)}><RotateCcw size={14} /> Run again</Button>}
       />
       <div className="page-inner">
         <div className="row muted" style={{ gap: 14, fontSize: 13, padding: '14px 0 0', flexWrap: 'wrap' }}>
           <span>{dateTime(run.createdAt)}</span>
           <span className="faint">·</span>
-          <span>by {run.createdBy}</span>
+          <span>{run.trigger.type === 'automation' ? `Automated · ${dateShort(run.trigger.day + 'T12:00:00')} sessions` : `by ${run.createdBy}`}</span>
           <span className="faint">·</span>
-          <span>Northwind Support <span className="mono faint">v{run.agentVersion}</span></span>
+          <span>{agent.name} <span className="mono faint">({agent.id}) v{run.agentVersion}</span></span>
           <span className="faint">·</span>
           <span>{plural(run.evaluations.length, 'evaluation')}</span>
           <span className="faint">·</span>
@@ -41,8 +46,8 @@ export default function RunResults({ run, query }) {
 
 function Running({ run }) {
   const per = run.evaluations.length
-  const sessionsDone = Math.floor(run.doneChecks / per)
-  const remainingSec = Math.max(1, Math.round(((run.totalChecks - run.doneChecks) / run.totalChecks) * 16))
+  const sessionsDone = per ? Math.floor(run.doneChecks / per) : 0
+  const remainingSec = run.totalChecks ? Math.max(1, Math.round(((run.totalChecks - run.doneChecks) / run.totalChecks) * 16)) : 0
   return (
     <div className="card" style={{ marginTop: 24, maxWidth: 720 }}>
       <div className="card-body" style={{ padding: 28 }}>
@@ -55,13 +60,13 @@ function Running({ run }) {
           <div className="spacer" />
           <span className="num">{n(sessionsDone)} / {n(run.evaluated.length)}</span>
         </div>
-        <div className="bar bar-lg"><span className="fill" style={{ width: `${(sessionsDone / run.evaluated.length) * 100}%` }} /></div>
+        <div className="bar bar-lg"><span className="fill" style={{ width: `${run.evaluated.length ? (sessionsDone / run.evaluated.length) * 100 : 100}%` }} /></div>
         <div className="row" style={{ margin: '22px 0 8px' }}>
           <span>Evaluations</span>
           <div className="spacer" />
           <span className="num">{n(run.doneChecks)} / {n(run.totalChecks)} checks completed</span>
         </div>
-        <div className="bar bar-lg"><span className="fill" style={{ width: `${(run.doneChecks / run.totalChecks) * 100}%`, background: 'var(--text-2)' }} /></div>
+        <div className="bar bar-lg"><span className="fill" style={{ width: `${run.totalChecks ? (run.doneChecks / run.totalChecks) * 100 : 100}%`, background: 'var(--text-2)' }} /></div>
         <div className="row" style={{ marginTop: 24 }}>
           <span className="muted">Estimated remaining: ~{remainingSec}s</span>
           <div className="spacer" />
