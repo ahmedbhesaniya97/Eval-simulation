@@ -11,6 +11,10 @@ import AutomationsPage from './pages/AutomationsPage.jsx'
 import RunResults from './pages/RunResults.jsx'
 import SessionResult from './pages/SessionResult.jsx'
 import { SessionsPage, SessionDetail } from './pages/SessionsPage.jsx'
+import SimulationPage from './pages/simulation/SimulationPage.jsx'
+import SimWizard from './pages/simulation/SimWizard.jsx'
+import SimResults from './pages/simulation/SimResults.jsx'
+import SimSessionResult from './pages/simulation/SimSessionResult.jsx'
 
 function NotInPrototype({ section }) {
   const label = section.replace(/-/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
@@ -44,10 +48,10 @@ function Toast() {
     <div className="toast" role="status">
       <CheckCircle2 size={20} style={{ color: 'var(--pass)' }} />
       <div style={{ flex: 1 }}>
-        <div style={{ fontWeight: 600 }}>Evaluation completed</div>
+        <div style={{ fontWeight: 600 }}>{toast.title}</div>
         <div className="muted" style={{ fontSize: 13 }}>{toast.name} is ready to review.</div>
       </div>
-      <Button size="sm" onClick={() => { navigate(`#/runs/${toast.runId}`); dismissToast() }}>View results</Button>
+      <Button size="sm" onClick={() => { navigate(toast.href); dismissToast() }}>View results</Button>
       <button className="icon-btn" onClick={dismissToast} aria-label="Dismiss"><X size={15} /></button>
     </div>
   )
@@ -55,7 +59,7 @@ function Toast() {
 
 export default function App() {
   const { parts, query } = useRoute()
-  const { runs } = useStore()
+  const { runs, simRuns } = useStore()
   const [section, id, sub, subId] = parts
 
   let page
@@ -70,6 +74,16 @@ export default function App() {
   else if (section === 'automations') page = <AutomationsPage query={query} />
   else if (section === 'sessions' && id && SESSION_BY_ID[id]) page = <SessionDetail key={id} sessionId={id} />
   else if (section === 'sessions') page = <SessionsPage />
+  // Simulation — its own area, never mixed with production sessions or evaluation runs.
+  // #/simulation[/scenarios|/personas], #/simulation/new, #/simulation/runs/:id[/sessions/:sid]
+  else if (section === 'simulation' && id === 'new') page = <SimWizard query={query} />
+  else if (section === 'simulation' && id === 'runs') {
+    const run = simRuns.find((r) => r.id === sub)
+    const sid = parts[4]
+    if (!run) page = <NotFound />
+    else if (subId === 'sessions' && sid && run.status === 'completed' && run.sessions.some((s) => s.id === sid)) page = <SimSessionResult key={sid} run={run} sessionId={sid} />
+    else page = <SimResults key={run.id} run={run} query={query} />
+  } else if (section === 'simulation') page = <SimulationPage tab={['scenarios', 'personas'].includes(id) ? id : 'run'} query={query} />
   else page = <NotInPrototype section={section || 'home'} />
 
   return (

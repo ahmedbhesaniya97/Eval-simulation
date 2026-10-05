@@ -1,6 +1,7 @@
 import {
   Home, Bot, BookOpen, Rocket, LayoutList, ClipboardCheck, PenTool, BellRing, PhoneCall, Webhook,
   PhoneOutgoing, FileLock2, ChevronsUpDown, PanelLeftClose, ListChecks, History, CalendarClock,
+  FlaskConical,
 } from 'lucide-react'
 import { useStore } from '../store.jsx'
 
@@ -48,9 +49,11 @@ function Item({ id, label, Icon, tag, active, extra }) {
 }
 
 export default function Sidebar({ section }) {
-  const { runs } = useStore()
+  const { runs, simRuns } = useStore()
   const running = runs.some((r) => r.status === 'running')
+  const simRunning = simRuns.some((r) => r.status === 'running')
   const inEval = ['evaluations', 'runs', 'automations'].includes(section)
+  const inSim = section === 'simulation'
 
   return (
     <aside className="sidebar">
@@ -88,6 +91,12 @@ export default function Sidebar({ section }) {
             <CalendarClock size={16} strokeWidth={1.7} /> Automations
           </a>
         </div>
+
+        <a href="#/simulation" className={`nav-item ${inSim ? 'active' : ''}`}>
+          <FlaskConical size={18} strokeWidth={1.7} />
+          <span>Simulation</span>
+          {simRunning ? <span className="run-dot" title="A simulation is in progress" /> : <span className="tag">New</span>}
+        </a>
 
         {BOTTOM.map((i) => <Item key={i.id} {...i} active={section === i.id} />)}
       </nav>

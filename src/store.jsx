@@ -4,6 +4,7 @@ import { buildSeedRuns, INITIAL_AUTOMATIONS } from './data/runs.js'
 import { computeRun } from './data/engine.js'
 import { NOW, sessionsOnDay } from './data/sessions.js'
 import { currentVersion } from './data/agents.js'
+import { INITIAL_SCENARIOS, INITIAL_PERSONAS, buildSeedSimRuns, buildSimRun, inferMood } from './data/simulation.js'
 
 const StoreContext = createContext(null)
 export const useStore = () => useContext(StoreContext)
@@ -24,6 +25,7 @@ export const navigate = (to) => {
 }
 
 const RUN_SECONDS = 16 // how long a mock run takes end-to-end
+const SIM_SECONDS = 14 // how long a mock simulation takes end-to-end
 const TICK_MS = 250
 
 let seq = 0
@@ -33,9 +35,14 @@ export function StoreProvider({ children }) {
   const [evaluations, setEvaluations] = useState(INITIAL_EVALUATIONS)
   const [runs, setRuns] = useState(buildSeedRuns)
   const [automations, setAutomations] = useState(INITIAL_AUTOMATIONS)
+  const [scenarios, setScenarios] = useState(INITIAL_SCENARIOS)
+  const [personas, setPersonas] = useState(INITIAL_PERSONAS)
+  const [simRuns, setSimRuns] = useState(buildSeedSimRuns)
   const [toast, setToast] = useState(null)
   const runsRef = useRef(runs)
   runsRef.current = runs
+  const simRunsRef = useRef(simRuns)
+  simRunsRef.current = simRuns
 
   // Background execution: keeps ticking no matter which page is open.
   useEffect(() => {
@@ -48,10 +55,30 @@ export function StoreProvider({ children }) {
           const jitter = Math.round(step * (0.6 + Math.random() * 0.8))
           const doneChecks = Math.min(r.totalChecks, r.doneChecks + jitter)
           if (doneChecks >= r.totalChecks) {
-            setToast({ runId: r.id, name: r.name })
+            setToast({ title: 'Evaluation completed', name: r.name, href: `#/runs/${r.id}` })
             return { ...r, doneChecks, status: 'completed', durationSec: Math.round((Date.now() - r.startedMs) / 1000) }
           }
           return { ...r, doneChecks }
+        })
+      )
+    }, TICK_MS)
+    return () => clearInterval(timer)
+  }, [])
+
+  // Simulations run in the background too, one conversation at a time.
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (!simRunsRef.current.some((r) => r.status === 'running')) return
+      setSimRuns((prev) =>
+        prev.map((r) => {
+          if (r.status !== 'running') return r
+          const step = r.total / ((SIM_SECONDS * 1000) / TICK_MS)
+          const done = Math.min(r.total, r.progress + step * (0.5 + Math.random()))
+          if (done >= r.total) {
+            setToast({ title: 'Simulation completed', name: r.name, href: `#/simulation/runs/${r.id}` })
+            return { ...r, done: r.total, progress: r.total, status: 'completed', durationSec: Math.round((Date.now() - r.startedMs) / 1000) }
+          }
+          return { ...r, progress: done, done: Math.floor(done) }
         })
       )
     }, TICK_MS)
@@ -121,6 +148,59 @@ export function StoreProvider({ children }) {
     setAutomations((list) => list.filter((a) => a.id !== id))
   }, [])
 
+  const saveScenario = useCallback((sc) => {
+    const id = sc.id ?? newId('scn')
+    setScenarios((list) =>
+      sc.id
+        ? list.map((x) => (x.id === sc.id ? { ...x, ...sc } : x))
+        : [...list, { source: 'manual', ...sc, id, createdAt: NOW.toISOString(), createdBy: 'Ahmed Bhesaniya' }]
+    )
+    return id
+  }, [])
+  // Bulk add (generated scenarios). Returns the new ids so the caller can select them.
+  const addScenarios = useCallback((items) => {
+    const added = items.map(({ tempId, ...sc }) => ({ ...sc, id: newId('scn'), createdAt: NOW.toISOString(), createdBy: 'Ahmed Bhesaniya' }))
+    setScenarios((list) => [...list, ...added])
+    return added.map((sc) => sc.id)
+  }, [])
+  const duplicateScenario = useCallback((id) => {
+    setScenarios((list) => {
+      const src = list.find((x) => x.id === id)
+      const copy = { ...src, id: newId('scn'), name: `${src.name} (copy)`, source: 'manual', createdAt: NOW.toISOString(), createdBy: 'Ahmed Bhesaniya' }
+      const i = list.indexOf(src)
+      return [...list.slice(0, i + 1), copy, ...list.slice(i + 1)]
+    })
+  }, [])
+  const deleteScenario = useCallback((id) => setScenarios((list) => list.filter((x) => x.id !== id)), [])
+
+  const savePersona = useCallback((input) => {
+    const p = { ...input, mood: inferMood(`${input.name} ${input.description}`) }
+    setPersonas((list) =>
+      p.id
+        ? list.map((x) => (x.id === p.id ? { ...x, ...p } : x))
+        : [...list, { ...p, id: newId('per'), builtIn: false, createdAt: NOW.toISOString(), createdBy: 'Ahmed Bhesaniya' }]
+    )
+  }, [])
+  const duplicatePersona = useCallback((id) => {
+    setPersonas((list) => {
+      const src = list.find((x) => x.id === id)
+      return [...list, { ...src, id: newId('per'), name: `${src.name} (copy)`, builtIn: false, createdAt: NOW.toISOString(), createdBy: 'Ahmed Bhesaniya' }]
+    })
+  }, [])
+  const deletePersona = useCallback((id) => setPersonas((list) => list.filter((x) => x.id !== id)), [])
+
+  const startSimulation = useCallback((config) => {
+    // Snapshot scenarios, personas and evaluations so later edits don't rewrite history.
+    const run = buildSimRun({
+      ...structuredClone(config),
+      id: newId('sim'),
+      createdAt: new Date(NOW.getTime() + (Date.now() % 600000)).toISOString(),
+      createdBy: 'Ahmed Bhesaniya',
+    })
+    setSimRuns((list) => [{ ...run, status: 'running', done: 0, progress: 0, startedMs: Date.now() }, ...list])
+    return run.id
+  }, [])
+
   // How many sessions each evaluation has been run against, across all runs.
   const usage = useMemo(() => {
     const u = {}
@@ -132,6 +212,9 @@ export function StoreProvider({ children }) {
     evaluations, runs, automations, usage, toast,
     saveEvaluation, duplicateEvaluation, toggleEvaluation, deleteEvaluation, startRun,
     createAutomation, toggleAutomation, deleteAutomation,
+    scenarios, personas, simRuns,
+    saveScenario, addScenarios, duplicateScenario, deleteScenario,
+    savePersona, duplicatePersona, deletePersona, startSimulation,
     // Run an automation right away on today's sessions so far.
     runAutomationNow: (a) => startRun({
       name: a.name,

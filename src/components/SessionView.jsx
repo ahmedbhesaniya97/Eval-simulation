@@ -66,9 +66,11 @@ function Logs({ session }) {
 }
 
 // Player + Transcript/Traces/Logs tabs — same layout as the Sessions page.
-export default function SessionView({ session, highlight, focusTurn, markers }) {
+// Text-only simulations have no audio, so they get the transcript alone.
+export default function SessionView({ session, highlight, focusTurn, markers, audio = true, userLabel }) {
   const [tab, setTab] = useState('transcript')
   const [position, setPosition] = useState(0)
+  if (!audio) return <Transcript session={session} highlight={highlight} focusTurn={focusTurn} userLabel={userLabel} />
   return (
     <>
       <Player duration={session.duration} position={position} setPosition={setPosition} markers={markers} />
@@ -77,7 +79,7 @@ export default function SessionView({ session, highlight, focusTurn, markers }) 
           <button key={t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)} style={{ textTransform: 'capitalize' }}>{t}</button>
         ))}
       </div>
-      {tab === 'transcript' && <Transcript session={session} highlight={highlight} focusTurn={focusTurn} position={position} />}
+      {tab === 'transcript' && <Transcript session={session} highlight={highlight} focusTurn={focusTurn} position={position} userLabel={userLabel} />}
       {tab === 'traces' && <Traces session={session} />}
       {tab === 'logs' && <Logs session={session} />}
     </>

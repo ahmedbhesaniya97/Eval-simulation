@@ -50,6 +50,7 @@ export function Player({ duration, position, setPosition, markers = [] }) {
 }
 
 function Latency({ turn }) {
+  if (turn.eou == null && turn.e2e == null) return null // text-only simulations have no audio pipeline
   const cells =
     turn.role === 'user'
       ? [['EOU Latency', turn.eou]]
@@ -72,7 +73,7 @@ function Latency({ turn }) {
  * highlight: { turns: number[], tone: 'fail' | 'pass', label: string } | null
  * focusTurn: turn index to scroll into view (changes trigger a scroll)
  */
-export default function Transcript({ session, highlight, focusTurn, position, compact }) {
+export default function Transcript({ session, highlight, focusTurn, position, compact, userLabel = 'User' }) {
   const refs = useRef({})
   const relevant = new Set(highlight?.turns ?? [])
 
@@ -93,11 +94,11 @@ export default function Transcript({ session, highlight, focusTurn, position, co
             ref={(el) => (refs.current[turn.idx] = el)}
             className={`turn ${isRel ? 'relevant' : ''} ${isRel && highlight.tone === 'pass' ? 'pass' : ''} ${playingIdx === turn.idx ? 'playing' : ''}`}
           >
-            <div className="ts" style={compact ? { fontSize: 15 } : null}>{clock(turn.t)}</div>
+            <div className="ts" style={compact ? { fontSize: 15 } : null}>{turn.t == null ? <span className="faint">#{turn.idx + 1}</span> : clock(turn.t)}</div>
             <div>
               <span className={`speaker ${turn.role}`}>
                 {turn.role === 'agent' ? <Bot size={15} /> : <User size={15} />}
-                {turn.role === 'agent' ? 'Agent' : 'User'}
+                {turn.role === 'agent' ? 'Agent' : userLabel}
               </span>
               {isRel && (
                 <span className={`relevant-tag ${highlight.tone === 'pass' ? 'pass' : ''}`}>
