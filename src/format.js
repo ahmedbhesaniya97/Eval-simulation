@@ -24,3 +24,7 @@ export function timeLabel(hhmm) {
   const [h, m] = hhmm.split(':').map(Number)
   return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
 }
+
+// Simulation cost: cents matter for a single conversation.
+// Pass digits = 3 for unit prices like $0.002 per turn.
+export const money = (v, digits = 2) => `$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: digits })}`
